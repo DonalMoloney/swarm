@@ -47,6 +47,18 @@ function validateBlueprint(blueprint) {
     }
   }
 
+  if (blueprint.context !== undefined) {
+    const { VALID_PROVIDERS } = require('./context');
+    if (!Array.isArray(blueprint.context)) {
+      errors.push('context must be an array of provider names');
+    } else {
+      const invalid = blueprint.context.filter(p => !VALID_PROVIDERS.includes(p));
+      if (invalid.length) {
+        errors.push(`Unknown context providers: ${invalid.join(', ')} (valid: ${VALID_PROVIDERS.join(', ')})`);
+      }
+    }
+  }
+
   return errors;
 }
 

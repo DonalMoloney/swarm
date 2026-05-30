@@ -46,4 +46,25 @@ const plan = compile(resolved);
 assert.strictEqual(plan.name, 'child');
 assert.strictEqual(plan.stages.length, 2);
 
-console.log('✓ compiler extends — all 4 tests pass');
+// Test 5: blueprint with valid context field compiles without error
+const { VALID_PROVIDERS } = require('../runtime/context');
+const withContext = {
+  name: 'ctx-test',
+  flow: 'a',
+  agents: { a: { role: 'Agent A' } },
+  context: ['git-diff', 'stack-detect'],
+};
+const plan2 = compile(withContext);
+assert.ok(plan2, 'blueprint with context compiles');
+
+// Test 6: blueprint with invalid context provider throws
+let threw = false;
+try {
+  compile({ name: 'bad', flow: 'a', agents: { a: { role: 'x' } }, context: ['not-a-provider'] });
+} catch (e) {
+  threw = true;
+  assert.ok(e.message.includes('not-a-provider'), 'error names the invalid provider');
+}
+assert.ok(threw, 'invalid context provider throws');
+
+console.log('✓ compiler extends + context — all 6 tests pass');
