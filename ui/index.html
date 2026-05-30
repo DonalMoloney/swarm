@@ -187,8 +187,9 @@
 <header>
   <h1 id="swarm-title">⬡ Swarm Dashboard</h1>
     <nav id="tabs" style="display:flex;gap:4px;">
-      <button id="tab-live"    class="tab active" onclick="showTab('live')">Live</button>
-      <button id="tab-history" class="tab"        onclick="showTab('history')">History</button>
+      <button id="tab-live"      class="tab active" onclick="showTab('live')">Live</button>
+      <button id="tab-history"   class="tab"        onclick="showTab('history')">History</button>
+      <button id="tab-decompose" class="tab"        onclick="showTab('decompose')">Decompose</button>
     </nav>
   <span class="meta" id="swarm-meta">waiting for swarm…</span>
   <span id="status-badge">idle</span>
@@ -220,6 +221,11 @@
     <tbody id="history-body"></tbody>
   </table>
   <pre id="history-output"></pre>
+</div>
+
+<div id="decompose-panel" style="display:none;flex:1;overflow:auto;padding:12px 16px;">
+  <h2 style="font-size:10px;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Decomposition Runs</h2>
+  <div id="decompose-list"></div>
 </div>
 
 <script src="graph.js"></script>
@@ -424,12 +430,14 @@
   connect();
 
   function showTab(tab) {
-    document.getElementById('tab-live').classList.toggle('active', tab === 'live');
-    document.getElementById('tab-history').classList.toggle('active', tab === 'history');
+    ['live', 'history', 'decompose'].forEach(t => {
+      document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+    });
     document.getElementById('bottom').style.display = tab === 'live' ? 'grid' : 'none';
-    const hp = document.getElementById('history-panel');
-    hp.classList.toggle('visible', tab === 'history');
+    document.getElementById('history-panel').style.display = tab === 'history' ? 'block' : 'none';
+    document.getElementById('decompose-panel').style.display = tab === 'decompose' ? 'block' : 'none';
     if (tab === 'history') loadHistory();
+    if (tab === 'decompose') loadDecompose();
   }
 
   function loadHistory() {
@@ -463,6 +471,62 @@
             tr.appendChild(td);
           });
           tbody.appendChild(tr);
+        });
+      });
+  }
+
+  function loadDecompose() {
+    fetch('/history')
+      .then(r => r.json())
+      .then(records => {
+        const runs = records.filter(r => r.blueprint === 'decompose');
+        const container = document.getElementById('decompose-list');
+        while (container.firstChild) container.removeChild(container.firstChild);
+
+        if (!runs.length) {
+          const msg = document.createElement('p');
+          msg.textContent = 'No decomposition runs yet. Use /swarm decompose "<goal>" to start one.';
+          msg.style.color = '#484f58';
+          container.appendChild(msg);
+          return;
+        }
+
+        runs.forEach(r => {
+          const section = document.createElement('div');
+          section.style.cssText = 'border:1px solid #21262d;border-radius:4px;margin-bottom:12px;overflow:hidden;';
+
+          const header = document.createElement('div');
+          header.style.cssText = 'background:#161b22;padding:8px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;';
+
+          const title = document.createElement('span');
+          title.style.color = '#e6edf3';
+          title.textContent = r.task;
+
+          const meta = document.createElement('span');
+          meta.style.color = '#484f58';
+          meta.style.fontSize = '10px';
+          meta.textContent = new Date(r.ts).toLocaleString();
+
+          header.appendChild(title);
+          header.appendChild(meta);
+
+          const body = document.createElement('pre');
+          body.style.cssText = 'display:none;padding:12px;font-size:11px;color:#8b949e;white-space:pre-wrap;margin:0;';
+
+          header.addEventListener('click', () => {
+            if (body.style.display === 'none') {
+              fetch('/output/' + encodeURIComponent(r.file))
+                .then(res => res.ok ? res.text() : Promise.reject())
+                .then(text => { body.textContent = text; body.style.display = 'block'; })
+                .catch(() => { body.textContent = 'Output file not found.'; body.style.display = 'block'; });
+            } else {
+              body.style.display = 'none';
+            }
+          });
+
+          section.appendChild(header);
+          section.appendChild(body);
+          container.appendChild(section);
         });
       });
   }
