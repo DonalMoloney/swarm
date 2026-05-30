@@ -1,4 +1,4 @@
 .swarm/
-swarms/output/
+swarms/output/*.md
 .superpowers/
 node_modules/
