@@ -170,12 +170,26 @@
     color: #484f58;
     font-size: 11px;
   }
+
+  .tab { background:#21262d; border:1px solid #30363d; color:#8b949e; padding:3px 10px; border-radius:4px; cursor:pointer; font-family:inherit; font-size:11px; }
+  .tab.active { background:#1f6feb33; color:#58a6ff; border-color:#58a6ff44; }
+  #history-panel { display:none; flex:1; overflow:auto; padding:12px 16px; }
+  #history-panel.visible { display:block; }
+  #history-table { width:100%; border-collapse:collapse; }
+  #history-table th { color:#484f58; font-size:10px; text-transform:uppercase; letter-spacing:1px; padding:4px 8px; border-bottom:1px solid #21262d; text-align:left; }
+  #history-table td { padding:5px 8px; border-bottom:1px solid #161b22; color:#8b949e; font-size:11px; }
+  #history-table td:first-child { color:#e6edf3; }
+  #history-output { margin-top:12px; background:#161b22; border:1px solid #21262d; border-radius:4px; padding:12px; white-space:pre-wrap; color:#8b949e; font-size:11px; display:none; }
 </style>
 </head>
 <body>
 
 <header>
   <h1 id="swarm-title">⬡ Swarm Dashboard</h1>
+    <nav id="tabs" style="display:flex;gap:4px;">
+      <button id="tab-live"    class="tab active" onclick="showTab('live')">Live</button>
+      <button id="tab-history" class="tab"        onclick="showTab('history')">History</button>
+    </nav>
   <span class="meta" id="swarm-meta">waiting for swarm…</span>
   <span id="status-badge">idle</span>
 </header>
@@ -197,6 +211,15 @@
     <h2>Live Log</h2>
     <div id="log-stream"></div>
   </div>
+</div>
+
+<div id="history-panel">
+  <h2 style="font-size:10px;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Run History</h2>
+  <table id="history-table">
+    <thead><tr><th>ID</th><th>Blueprint</th><th>Task</th><th>Date</th></tr></thead>
+    <tbody id="history-body"></tbody>
+  </table>
+  <pre id="history-output"></pre>
 </div>
 
 <script src="graph.js"></script>
@@ -399,6 +422,65 @@
   }
 
   connect();
+
+  function showTab(tab) {
+    document.getElementById('tab-live').classList.toggle('active', tab === 'live');
+    document.getElementById('tab-history').classList.toggle('active', tab === 'history');
+    document.getElementById('bottom').style.display = tab === 'live' ? 'grid' : 'none';
+    const hp = document.getElementById('history-panel');
+    hp.classList.toggle('visible', tab === 'history');
+    if (tab === 'history') loadHistory();
+  }
+
+  function loadHistory() {
+    fetch('/history')
+      .then(r => r.json())
+      .then(records => {
+        const tbody = document.getElementById('history-body');
+        while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+        if (!records.length) {
+          const tr = document.createElement('tr');
+          const td = document.createElement('td');
+          td.colSpan = 4;
+          td.textContent = 'No runs yet';
+          td.style.cssText = 'color:#484f58;text-align:center;padding:20px';
+          tr.appendChild(td);
+          tbody.appendChild(tr);
+          return;
+        }
+        records.forEach(r => {
+          const tr = document.createElement('tr');
+          tr.style.cursor = 'pointer';
+          tr.addEventListener('click', () => openRun(r.file, r.id));
+          [
+            r.id,
+            r.blueprint,
+            r.task.length > 60 ? r.task.slice(0, 60) + '…' : r.task,
+            new Date(r.ts).toLocaleString(),
+          ].forEach(text => {
+            const td = document.createElement('td');
+            td.textContent = text;
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+      });
+  }
+
+  function openRun(file, id) {
+    fetch('/output/' + encodeURIComponent(file))
+      .then(r => r.ok ? r.text() : Promise.reject())
+      .then(text => {
+        const el = document.getElementById('history-output');
+        el.textContent = text;
+        el.style.display = 'block';
+      })
+      .catch(() => {
+        const el = document.getElementById('history-output');
+        el.textContent = 'Output file not found: ' + file;
+        el.style.display = 'block';
+      });
+  }
 </script>
 </body>
 </html>

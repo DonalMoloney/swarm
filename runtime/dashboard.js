@@ -109,6 +109,25 @@ function startServer(port) {
         }
       });
 
+    } else if (url.pathname === '/history') {
+      const indexFile = path.join(process.cwd(), 'swarms', 'output', 'index.json');
+      let data = '[]';
+      try { data = fs.readFileSync(indexFile, 'utf8'); } catch {}
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(data);
+
+    } else if (url.pathname.startsWith('/output/')) {
+      const filename = decodeURIComponent(url.pathname.slice('/output/'.length));
+      const filePath = path.join(process.cwd(), 'swarms', 'output', path.basename(filename));
+      try {
+        const data = fs.readFileSync(filePath, 'utf8');
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end(data);
+      } catch {
+        res.writeHead(404);
+        res.end('not found');
+      }
+
     } else {
       res.writeHead(404);
       res.end('not found');
