@@ -156,10 +156,14 @@ if (require.main === module) {
   let blueprint = yaml.parse ? yaml.parse(raw) : parseSimpleYaml(raw);
 
   function loadBlueprint(name) {
-    if (!/^[a-zA-Z0-9_/-]+$/.test(name) || name.includes('..')) {
+    if (!/^[a-zA-Z0-9_][a-zA-Z0-9_/-]*$/.test(name) || name.includes('..')) {
       throw new Error(`Invalid blueprint name "${name}": only alphanumeric, dash, underscore, and single forward-slash allowed`);
     }
     const p = path.resolve(path.dirname(blueprintPath), '..', `${name}.yaml`);
+    const blueprintsRoot = path.resolve(path.dirname(blueprintPath), '..');
+    if (!p.startsWith(blueprintsRoot + path.sep)) {
+      throw new Error(`Blueprint path "${name}" resolves outside the swarms directory`);
+    }
     const src = fs.readFileSync(p, 'utf8');
     return yaml.parse ? yaml.parse(src) : parseSimpleYaml(src);
   }
