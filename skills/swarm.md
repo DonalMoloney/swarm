@@ -105,14 +105,31 @@ Parse the stages from the blueprint's flow string. For each stage:
 - Spawn the agent with its role + task + all prior stage outputs concatenated
 - Emit `agent_done` with a snippet of the output
 
-### 7. Save output
+### 7. Save output and record history
 
-Write the final agent's output to:
-```
-swarms/output/<BLUEPRINT_NAME>-<timestamp>.md
+```bash
+mkdir -p swarms/output
 ```
 
-Create the output directory if needed: `mkdir -p swarms/output`
+Write the final agent's output to `swarms/output/<BLUEPRINT_NAME>-<YYYYMMDD-HHmmss>.md`.
+
+Then append to the run history index:
+
+```bash
+node -e "
+const history = require('./runtime/history');
+const id = '<BLUEPRINT_NAME>-<YYYYMMDD-HHmmss>';
+history.append({
+  id: id,
+  blueprint: '<BLUEPRINT_NAME>',
+  task: '<TASK>',
+  file: id + '.md',
+  ts: Date.now()
+});
+"
+```
+
+Replace `<BLUEPRINT_NAME>`, `<YYYYMMDD-HHmmss>`, and `<TASK>` with the actual values from this run.
 
 ### 8. Emit swarm_done
 
