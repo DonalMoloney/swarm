@@ -67,4 +67,24 @@ try {
 }
 assert.ok(threw, 'invalid context provider throws');
 
-console.log('✓ compiler extends + context — all 6 tests pass');
+// Test 7: blueprint with valid actions field compiles without error
+const withActions = {
+  name: 'action-test',
+  flow: 'a',
+  agents: { a: { role: 'Agent A' } },
+  actions: ['edit-files', 'run-tests'],
+};
+const plan3 = compile(withActions);
+assert.ok(plan3, 'blueprint with actions compiles');
+
+// Test 8: blueprint with invalid action throws
+let threwActions = false;
+try {
+  compile({ name: 'bad-action', flow: 'a', agents: { a: { role: 'x' } }, actions: ['delete-everything'] });
+} catch (e) {
+  threwActions = true;
+  assert.ok(e.message.includes('delete-everything'), 'error names the invalid action');
+}
+assert.ok(threwActions, 'invalid action throws');
+
+console.log('✓ compiler extends + context + actions — all 8 tests pass');

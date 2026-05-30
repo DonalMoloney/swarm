@@ -59,6 +59,18 @@ function validateBlueprint(blueprint) {
     }
   }
 
+  if (blueprint.actions !== undefined) {
+    const VALID_ACTIONS = ['edit-files', 'run-tests', 'open-pr'];
+    if (!Array.isArray(blueprint.actions)) {
+      errors.push('actions must be an array');
+    } else {
+      const invalid = blueprint.actions.filter(a => !VALID_ACTIONS.includes(a));
+      if (invalid.length) {
+        errors.push(`Unknown actions: ${invalid.join(', ')} (valid: ${VALID_ACTIONS.join(', ')})`);
+      }
+    }
+  }
+
   return errors;
 }
 
