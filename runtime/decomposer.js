@@ -28,6 +28,9 @@ function parsePlan(raw) {
 }
 
 function validatePlan(steps, availableBlueprints) {
+  if (!Array.isArray(steps)) {
+    return [`validatePlan: expected an array of steps, got ${typeof steps}`];
+  }
   const errors = [];
   steps.forEach((step, i) => {
     const label = `Step ${step.step || i + 1}`;
@@ -52,7 +55,8 @@ function listBlueprints(swarmsDir) {
       if (fs.statSync(full).isDirectory() && f !== 'output') {
         scan(full, prefix ? `${prefix}/${f}` : f);
       } else if (f.endsWith('.yaml')) {
-        blueprints.push(prefix ? `${prefix}/${f.slice(0, -5)}` : f.slice(0, -5));
+        const name = f.slice(0, -5);
+        if (name) blueprints.push(prefix ? `${prefix}/${name}` : name);
       }
     });
   }
