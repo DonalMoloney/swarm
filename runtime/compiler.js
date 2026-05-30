@@ -50,9 +50,15 @@ function validateBlueprint(blueprint) {
   return errors;
 }
 
-function resolveExtends(blueprint, loadBlueprint) {
+function resolveExtends(blueprint, loadBlueprint, _seen) {
   if (!blueprint.extends) return blueprint;
-  const parent = loadBlueprint(blueprint.extends);
+  const seen = _seen || new Set();
+  if (seen.has(blueprint.name)) {
+    throw new Error(`Circular extends detected: "${blueprint.name}" extends itself`);
+  }
+  seen.add(blueprint.name);
+  let parent = loadBlueprint(blueprint.extends);
+  parent = resolveExtends(parent, loadBlueprint, seen);
   const resolved = {
     ...parent,
     ...blueprint,
@@ -60,10 +66,17 @@ function resolveExtends(blueprint, loadBlueprint) {
     flow: blueprint.flow || parent.flow,
   };
   delete resolved.extends;
+  if (!blueprint.name) {
+    throw new Error('Blueprint must declare a "name" field');
+  }
+  resolved.name = blueprint.name; // child name always wins
   return resolved;
 }
 
 function compile(blueprint) {
+  if (blueprint.extends) {
+    throw new Error('Blueprint has unresolved "extends" field — call resolveExtends() before compile()');
+  }
   const errors = validateBlueprint(blueprint);
   if (errors.length) {
     throw new Error(`Blueprint validation failed:\n${errors.map(e => `  • ${e}`).join('\n')}`);
@@ -143,6 +156,9 @@ if (require.main === module) {
   let blueprint = yaml.parse ? yaml.parse(raw) : parseSimpleYaml(raw);
 
   function loadBlueprint(name) {
+    if (!/^[a-zA-Z0-9_/-]+$/.test(name) || name.includes('..')) {
+      throw new Error(`Invalid blueprint name "${name}": only alphanumeric, dash, underscore, and single forward-slash allowed`);
+    }
     const p = path.resolve(path.dirname(blueprintPath), '..', `${name}.yaml`);
     const src = fs.readFileSync(p, 'utf8');
     return yaml.parse ? yaml.parse(src) : parseSimpleYaml(src);
