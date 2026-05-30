@@ -9,10 +9,22 @@ function parsePlan(raw) {
     if (Array.isArray(parsed)) return parsed;
   } catch {}
 
-  // Extract first [...] block from surrounding prose
-  const match = raw.match(/\[[\s\S]*?\]/);
-  if (!match) throw new Error('No JSON array found in meta-agent output');
-  return JSON.parse(match[0]);
+  // Extract first [...] block using bracket counting (handles nested structures)
+  const startIdx = raw.indexOf('[');
+  if (startIdx === -1) throw new Error('No JSON array found in meta-agent output');
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = startIdx; i < raw.length; i++) {
+    const ch = raw[i];
+    if (escape) { escape = false; continue; }
+    if (ch === '\\' && inString) { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '[') depth++;
+    if (ch === ']') { depth--; if (depth === 0) return JSON.parse(raw.slice(startIdx, i + 1)); }
+  }
+  throw new Error('No complete JSON array found in meta-agent output');
 }
 
 function validatePlan(steps, availableBlueprints) {

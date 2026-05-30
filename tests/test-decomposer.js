@@ -40,4 +40,10 @@ const incomplete = [{ step: 1, blueprint: 'research' }];
 const errs2 = validatePlan(incomplete, AVAILABLE);
 assert.ok(errs2.some(e => e.includes('task')), 'missing task field caught');
 
+// Test 6b: parsePlan handles nested arrays in prose correctly
+const nested = 'Plan:\n' + JSON.stringify([{step:1, blueprint:'debug', task:'x', reason:'y', meta:{tags:['a','b']}}]) + '\nEnd.';
+const steps3 = parsePlan(nested);
+assert.strictEqual(steps3.length, 1, 'nested array in prose parsed correctly');
+assert.strictEqual(steps3[0].blueprint, 'debug');
+
 console.log('✓ runtime/decomposer.js — all 6 tests pass');
