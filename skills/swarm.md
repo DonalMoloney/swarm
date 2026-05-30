@@ -25,6 +25,7 @@ Extract from the invocation:
 - `BLUEPRINT_NAME` — first argument (e.g. `research`, `code-review`, `debug`)
 - `TASK` — the quoted task description
 - `DRY_RUN` — true if `--dry-run` flag present
+- `CONTEXT_PROVIDERS` — value of `--context` flag if present (comma-separated, e.g. `git-diff,stack-detect`), else empty string
 
 If the command is `/swarm list`, run: `ls swarms/*.yaml` and print the available blueprints, then stop.
 
@@ -90,6 +91,31 @@ fs.appendFileSync('.swarm/events.jsonl', JSON.stringify(evt)+'\n');
 "
 ```
 
+### 5b. Gather context
+
+Determine the context providers to use:
+1. If the blueprint has a `context:` field, use those providers.
+2. If `--context` was passed on the command line, use those providers (comma-separated, no spaces).
+3. If both are present, merge and deduplicate.
+4. If neither, skip this step (`CONTEXT_BLOCK` = empty string).
+
+If providers were determined, run:
+
+```bash
+node -e "
+const { gather } = require('./runtime/context');
+const providers = '<PROVIDERS>'.split(',').map(p => p.trim()).filter(Boolean);
+process.stdout.write(gather(providers));
+" > .swarm/context.txt
+```
+
+Set `CONTEXT_BLOCK` = contents of `.swarm/context.txt`.
+
+If `CONTEXT_BLOCK` is non-empty, print:
+```
+Context gathered: <PROVIDERS>
+```
+
 ### 6. Execute the swarm
 
 Parse the stages from the blueprint's flow string. For each stage:
@@ -97,7 +123,7 @@ Parse the stages from the blueprint's flow string. For each stage:
 **Parallel stage** (multiple agents separated by commas):
 - Emit `agent_start` for each agent: `node runtime/events.js agent_start <name> running "Starting…"`
 - Spawn all agents in this stage simultaneously using the Agent tool
-- Each agent prompt = the agent's `role` from the blueprint + "\n\nTask: " + TASK + (if stage > 0: "\n\nPrevious stage output:\n" + prior_output)
+- Each agent prompt = the agent's `role` from the blueprint + "\n\nTask: " + TASK + (if CONTEXT_BLOCK is non-empty: "\n\n" + CONTEXT_BLOCK) + (if stage > 0: "\n\nPrevious stage output:\n" + prior_output)
 - After all complete, emit `agent_done` for each: `node runtime/events.js agent_done <name> done "<first 100 chars of output>"`
 
 **Sequential stage** (single agent):
