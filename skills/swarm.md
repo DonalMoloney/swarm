@@ -116,6 +116,35 @@ If `CONTEXT_BLOCK` is non-empty, print:
 Context gathered: <PROVIDERS>
 ```
 
+### 5c. Actions permission gate
+
+Check whether the blueprint declares an `actions` field with one or more values.
+
+If `actions` is present and non-empty, **stop and show this prompt to the user before proceeding**:
+
+```
+⚠ This swarm has action permissions: <actions joined by ", ">
+  Agents will be permitted to:
+    - edit-files  → modify files in your working tree
+    - run-tests   → execute shell commands (tests, builds)
+    - open-pr     → run `gh pr create` to open a pull request
+
+  Type "yes" to proceed, or anything else to cancel.
+```
+
+Wait for the user's response.
+- If the user types exactly `yes` (case-insensitive), continue to step 6.
+- If the user types anything else, emit:
+  ```bash
+  node runtime/events.js swarm_done swarm cancelled "Cancelled by user at permission gate"
+  ```
+  Then stop and print:
+  ```
+  Swarm cancelled.
+  ```
+
+If `--dry-run` is active, skip this gate entirely (dry runs never execute agents).
+
 ### 6. Execute the swarm
 
 Parse the stages from the blueprint's flow string. For each stage:
