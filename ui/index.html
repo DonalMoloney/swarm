@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swarm Dashboard</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+    font-size: 12px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    border-bottom: 1px solid #21262d;
+    background: #161b22;
+    flex-shrink: 0;
+  }
+
+  header h1 { font-size: 13px; color: #58a6ff; }
+  header .meta { color: #8b949e; font-size: 11px; }
+
+  #status-badge {
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    background: #21262d;
+    color: #8b949e;
+  }
+  #status-badge.running { background: #1f6feb33; color: #58a6ff; }
+  #status-badge.done    { background: #23863633; color: #3fb950; }
+  #status-badge.error   { background: #f8514922; color: #f85149; }
+
+  /* Top: topology graph */
+  #graph-panel {
+    flex: 0 0 160px;
+    border-bottom: 1px solid #21262d;
+    padding: 8px 12px;
+    background: #0d1117;
+  }
+
+  #graph-panel h2 { font-size: 10px; color: #484f58; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+
+  #graph-svg {
+    width: 100%;
+    height: 120px;
+    display: block;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  .pulse { animation: pulse 1.2s ease-in-out infinite; }
+
+  /* Bottom: task tree + logs side by side */
+  #bottom {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  #task-panel {
+    border-right: 1px solid #21262d;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #task-panel h2, #log-panel h2 {
+    font-size: 10px;
+    color: #484f58;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 8px 12px 6px;
+    border-bottom: 1px solid #21262d;
+    flex-shrink: 0;
+  }
+
+  #task-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+
+  .task-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 6px 12px;
+    border-bottom: 1px solid #21262d11;
+    transition: background 0.15s;
+  }
+
+  .task-item:hover { background: #161b22; }
+
+  .task-icon { flex-shrink: 0; width: 14px; text-align: center; margin-top: 1px; }
+  .task-icon.pending  { color: #484f58; }
+  .task-icon.running  { color: #58a6ff; }
+  .task-icon.done     { color: #3fb950; }
+  .task-icon.error    { color: #f85149; }
+
+  .task-body { flex: 1; min-width: 0; }
+  .task-name { color: #e6edf3; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .task-name.pending { color: #484f58; }
+  .task-meta { color: #8b949e; font-size: 10px; margin-top: 2px; }
+  .task-output {
+    color: #8b949e;
+    font-size: 10px;
+    margin-top: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 220px;
+  }
+
+  /* Log panel */
+  #log-panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #0d1117;
+  }
+
+  #log-stream {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 12px;
+    line-height: 1.6;
+  }
+
+  .log-line {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 1px;
+  }
+
+  .log-ts { color: #484f58; flex-shrink: 0; }
+  .log-agent { flex-shrink: 0; min-width: 80px; font-weight: 600; }
+  .log-msg { color: #8b949e; word-break: break-word; }
+
+  .log-line.swarm_start .log-agent, .log-line.swarm_done .log-agent { color: #a371f7; }
+  .log-line.agent_start .log-agent  { color: #58a6ff; }
+  .log-line.agent_done  .log-agent  { color: #3fb950; }
+  .log-line.agent_error .log-agent  { color: #f85149; }
+  .log-line.agent_log   .log-agent  { color: #d29922; }
+
+  /* Scrollbars */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }
+
+  #empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #484f58;
+    font-size: 11px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 id="swarm-title">⬡ Swarm Dashboard</h1>
+  <span class="meta" id="swarm-meta">waiting for swarm…</span>
+  <span id="status-badge">idle</span>
+</header>
+
+<div id="graph-panel">
+  <h2>Topology</h2>
+  <svg id="graph-svg"></svg>
+</div>
+
+<div id="bottom">
+  <div id="task-panel">
+    <h2>Agents</h2>
+    <div id="task-list">
+      <div id="empty-state">No agents yet</div>
+    </div>
+  </div>
+
+  <div id="log-panel">
+    <h2>Live Log</h2>
+    <div id="log-stream"></div>
+  </div>
+</div>
+
+<script src="graph.js"></script>
+<script>
+  const state = {
+    swarmName: '',
+    task: '',
+    stages: [],
+    agents: {},   // name → { status, tokens, elapsed, output, startedAt }
+    status: 'idle',
+  };
+
+  const AGENT_COLORS = ['#58a6ff','#3fb950','#d29922','#a371f7','#f0883e','#39d353','#f85149'];
+  const agentColorMap = {};
+  let colorIdx = 0;
+
+  function agentColor(name) {
+    if (!agentColorMap[name]) {
+      agentColorMap[name] = AGENT_COLORS[colorIdx++ % AGENT_COLORS.length];
+    }
+    return agentColorMap[name];
+  }
+
+  function fmtTime(ms) {
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+
+  function statusIcon(s) {
+    return { pending: '○', running: '⟳', done: '✓', error: '✗' }[s] || '○';
+  }
+
+  function updateHeader() {
+    const title = document.getElementById('swarm-title');
+    const meta = document.getElementById('swarm-meta');
+    const badge = document.getElementById('status-badge');
+
+    const name = state.swarmName ? `⬡ ${state.swarmName}` : '⬡ Swarm Dashboard';
+    title.textContent = name;
+    meta.textContent = state.task || 'waiting for swarm…';
+
+    badge.textContent = state.status;
+    badge.className = '';
+    if (state.status === 'running') badge.classList.add('running');
+    if (state.status === 'done') badge.classList.add('done');
+    if (state.status === 'error') badge.classList.add('error');
+  }
+
+  function renderTaskList() {
+    const list = document.getElementById('task-list');
+    const empty = document.getElementById('empty-state');
+    const names = Object.keys(state.agents);
+
+    if (!names.length) {
+      if (empty) empty.style.display = 'flex';
+      return;
+    }
+    if (empty) empty.style.display = 'none';
+
+    list.textContent = '';
+
+    names.forEach(name => {
+      const a = state.agents[name];
+      const item = document.createElement('div');
+      item.className = 'task-item';
+
+      const icon = document.createElement('div');
+      icon.className = `task-icon ${a.status}`;
+      icon.textContent = statusIcon(a.status);
+
+      const body = document.createElement('div');
+      body.className = 'task-body';
+
+      const nameEl = document.createElement('div');
+      nameEl.className = `task-name ${a.status === 'pending' ? 'pending' : ''}`;
+      nameEl.textContent = name;
+
+      const metaEl = document.createElement('div');
+      metaEl.className = 'task-meta';
+      const parts = [];
+      if (a.elapsed) parts.push(fmtTime(a.elapsed));
+      if (a.tokens) parts.push(`${a.tokens.toLocaleString()} tok`);
+      metaEl.textContent = parts.join(' · ') || a.status;
+
+      body.appendChild(nameEl);
+      body.appendChild(metaEl);
+
+      if (a.output) {
+        const out = document.createElement('div');
+        out.className = 'task-output';
+        out.textContent = a.output;
+        body.appendChild(out);
+      }
+
+      item.appendChild(icon);
+      item.appendChild(body);
+      list.appendChild(item);
+    });
+  }
+
+  function appendLog(event) {
+    const stream = document.getElementById('log-stream');
+    const line = document.createElement('div');
+    line.className = `log-line ${event.type}`;
+
+    const ts = document.createElement('span');
+    ts.className = 'log-ts';
+    ts.textContent = new Date(event.ts).toLocaleTimeString('en', { hour12: false });
+
+    const agent = document.createElement('span');
+    agent.className = 'log-agent';
+    const agentLabel = event.agent || 'swarm';
+    agent.textContent = `[${agentLabel}]`;
+    agent.style.color = agentColor(agentLabel);
+
+    const msg = document.createElement('span');
+    msg.className = 'log-msg';
+    msg.textContent = event.message || event.status || event.type;
+
+    line.appendChild(ts);
+    line.appendChild(agent);
+    line.appendChild(msg);
+    stream.appendChild(line);
+    stream.scrollTop = stream.scrollHeight;
+  }
+
+  function processEvent(event) {
+    switch (event.type) {
+      case 'swarm_start':
+        state.swarmName = event.agent || 'swarm';
+        state.task = event.message || '';
+        state.status = 'running';
+        if (event.stages) state.stages = event.stages;
+        // Register all agents as pending
+        if (event.agents) {
+          event.agents.forEach(name => {
+            state.agents[name] = { status: 'pending', tokens: 0, elapsed: 0 };
+          });
+        }
+        break;
+
+      case 'agent_start':
+        if (event.agent) {
+          state.agents[event.agent] = {
+            ...(state.agents[event.agent] || {}),
+            status: 'running',
+            startedAt: event.ts,
+          };
+        }
+        break;
+
+      case 'agent_log':
+        if (event.agent && state.agents[event.agent]) {
+          state.agents[event.agent].output = event.message;
+        }
+        break;
+
+      case 'agent_done':
+        if (event.agent && state.agents[event.agent]) {
+          const a = state.agents[event.agent];
+          a.status = 'done';
+          a.elapsed = a.startedAt ? event.ts - a.startedAt : 0;
+          a.tokens = event.tokens || 0;
+          a.output = event.message || '';
+        }
+        break;
+
+      case 'agent_error':
+        if (event.agent && state.agents[event.agent]) {
+          state.agents[event.agent].status = 'error';
+          state.agents[event.agent].output = event.message;
+        }
+        break;
+
+      case 'swarm_done':
+        state.status = event.status === 'error' ? 'error' : 'done';
+        break;
+    }
+
+    updateHeader();
+    renderTaskList();
+
+    const agentStates = {};
+    Object.entries(state.agents).forEach(([k, v]) => { agentStates[k] = v.status; });
+    renderGraph(state.stages, agentStates, document.getElementById('graph-svg'));
+
+    appendLog(event);
+  }
+
+  // Connect SSE
+  function connect() {
+    const es = new EventSource('/events');
+    es.onmessage = e => {
+      try { processEvent(JSON.parse(e.data)); } catch {}
+    };
+    es.onerror = () => {
+      es.close();
+      setTimeout(connect, 2000);
+    };
+  }
+
+  connect();
+</script>
+</body>
+</html>

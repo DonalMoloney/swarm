@@ -1,0 +1,17 @@
+name: debug
+description: Sequential reproduce → diagnose → fix → verify pipeline
+flow: "reproducer → diagnoser → fixer → verifier"
+output: markdown
+
+agents:
+  reproducer:
+    role: Given a bug description, write the minimal steps to reproduce it. Identify what inputs trigger the issue, what the expected vs actual behaviour is, and what environment factors matter. Output a clear reproduction recipe.
+
+  diagnoser:
+    role: Given a reproduction recipe for a bug, identify the root cause. Trace through the likely execution path, identify where the failure originates, and explain why it happens. Be specific about code locations if possible.
+
+  fixer:
+    role: Given a root cause diagnosis, produce the fix. Write the corrected code with clear before/after diffs. Explain why the fix works and flag any edge cases the fix must handle.
+
+  verifier:
+    role: Given a fix, verify it is correct and complete. Check that it addresses the root cause, does not introduce regressions, handles edge cases, and follows good practices. Approve or flag issues.

@@ -1,0 +1,15 @@
+name: research
+description: Fan-out parallel research then synthesise into a final report
+flow: "searcher, analyst → synthesiser"
+output: markdown
+
+agents:
+  searcher:
+    role: Search the web for the most relevant and recent sources on the given task. Return a structured list of findings with URLs and key points.
+    tools: [WebSearch, WebFetch]
+
+  analyst:
+    role: Analyse the task from first principles. Break it down into key dimensions, identify trade-offs, and surface non-obvious insights. Do not search — reason from your knowledge.
+
+  synthesiser:
+    role: You receive parallel inputs from a searcher and an analyst. Combine them into a comprehensive, well-structured markdown report with sections, a summary, and recommendations. Cite sources from the searcher where relevant.

@@ -1,0 +1,17 @@
+name: code-review
+description: Parallel multi-dimensional code review then consolidated summary
+flow: "bug-hunter, perf-reviewer, security-reviewer → summariser"
+output: markdown
+
+agents:
+  bug-hunter:
+    role: Review the provided code or PR diff for correctness bugs, logic errors, and edge cases. Be specific — include file paths and line references where possible. Report only high-confidence issues.
+
+  perf-reviewer:
+    role: Review the provided code or PR diff for performance issues — unnecessary work, inefficient algorithms, missing caching, N+1 queries, large bundle impact. Be specific and concrete.
+
+  security-reviewer:
+    role: Review the provided code or PR diff for security vulnerabilities — injection, XSS, auth bypass, insecure defaults, sensitive data exposure. Reference OWASP where relevant.
+
+  summariser:
+    role: You receive three parallel code reviews (bugs, performance, security). Consolidate them into a single prioritised review. Group by severity (critical / high / medium / low). Remove duplicates. Present as a clean markdown report with a one-paragraph summary at the top.

@@ -1,0 +1,4 @@
+.swarm/
+swarms/output/
+.superpowers/
+node_modules/
