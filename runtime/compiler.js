@@ -50,6 +50,19 @@ function validateBlueprint(blueprint) {
   return errors;
 }
 
+function resolveExtends(blueprint, loadBlueprint) {
+  if (!blueprint.extends) return blueprint;
+  const parent = loadBlueprint(blueprint.extends);
+  const resolved = {
+    ...parent,
+    ...blueprint,
+    agents: { ...parent.agents, ...blueprint.agents },
+    flow: blueprint.flow || parent.flow,
+  };
+  delete resolved.extends;
+  return resolved;
+}
+
 function compile(blueprint) {
   const errors = validateBlueprint(blueprint);
   if (errors.length) {
@@ -125,8 +138,17 @@ if (require.main === module) {
     return result;
   }
 
+  const yaml = require('./simple-yaml.js');
   const raw = fs.readFileSync(path.resolve(blueprintPath), 'utf8');
-  const blueprint = parseSimpleYaml(raw);
+  let blueprint = yaml.parse ? yaml.parse(raw) : parseSimpleYaml(raw);
+
+  function loadBlueprint(name) {
+    const p = path.resolve(path.dirname(blueprintPath), '..', `${name}.yaml`);
+    const src = fs.readFileSync(p, 'utf8');
+    return yaml.parse ? yaml.parse(src) : parseSimpleYaml(src);
+  }
+
+  blueprint = resolveExtends(blueprint, loadBlueprint);
 
   try {
     const plan = compile(blueprint);
@@ -146,4 +168,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { parseFlow, compile, validateBlueprint };
+module.exports = { parseFlow, compile, validateBlueprint, resolveExtends };
