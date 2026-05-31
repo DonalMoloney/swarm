@@ -215,6 +215,56 @@ Print a summary:
 | `agent_error` | agent failed |
 | `swarm_done` | all agents complete |
 
+## Checkpoint & Resume
+
+After each stage completes successfully, Swarm saves a checkpoint with:
+- Stage number and timestamp
+- All agent outputs from completed stages
+- Enough context to resume execution
+
+On the next run of the same blueprint, Swarm detects the checkpoint and prompts:
+
+```
+Checkpoint found: research (completed: stage 2 of 4, 5 minutes ago)
+Resume from stage 3? (yes/no)
+> yes
+
+Resuming from stage 3...
+```
+
+If you answer `yes`, execution skips to stage 3 (all prior outputs are re-fed as context).
+
+### Use Cases
+
+- **Network timeout** — Agent partially complete, connection dropped. Resume later.
+- **Prompt refinement** — Run stages 1-2, tweak the stage 3 prompt, resume from stage 3.
+- **Interrupted session** — Had to stop mid-run. Resume the next day.
+- **Debugging** — Run stage 1, inspect outputs, run stage 2 with adjusted context.
+
+### How It Works
+
+1. After each stage completes → `node runtime/checkpoint.js save <blueprint> <stage> <outputs>`
+2. Next run → `node runtime/checkpoint.js detect <blueprint>` checks for recent checkpoint
+3. If found → show resume prompt to user
+4. If user resumes → skip to that stage, re-feed all prior outputs
+
+### View Resumable Runs
+
+```
+/swarm history
+```
+
+Shows list of completed and resumable swarms:
+
+```
+Recent swarms:
+  research              — stage 3 of 5 (4 hours ago)   [resumable]
+  code-review           — stage 2 of 2 (complete)      [completed]
+  debug-auth            — stage 1 of 3 (30 min ago)    [resumable]
+```
+
+Checkpoints are stored in `.swarm/checkpoints/<blueprint>/` and are automatically cleaned up after 7 days or when explicitly discarded.
+
 ## Error handling
 
 - If an agent fails, emit `agent_error`, log the error, and continue with remaining agents
