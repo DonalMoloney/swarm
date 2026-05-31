@@ -2,46 +2,65 @@
 
 <div id="preview-container" style="display:flex;flex-direction:column;height:100%;background:#0d1117;color:#e6edf3;font-family:'SF Mono','Cascadia Code',monospace;font-size:12px;">
 
-  <header style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #21262d;background:#161b22;flex-shrink:0;">
+  <header style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #21262d;background:#161b22;flex-shrink:0;">
     <div>
-      <h1 id="preview-name" style="font-size:13px;color:#58a6ff;margin:0;">Blueprint Preview</h1>
-      <p id="preview-desc" style="color:#8b949e;font-size:11px;margin:4px 0 0;"></p>
+      <h1 id="preview-name" style="font-size:18px;font-weight:600;color:#58a6ff;margin:0;">Blueprint Preview</h1>
+      <p id="preview-desc" style="color:#8b949e;font-size:12px;margin:4px 0 0;"></p>
     </div>
-    <span id="preview-status" style="padding:4px 10px;border-radius:6px;background:#21262d;color:#8b949e;font-size:11px;">ready</span>
+    <div id="preview-status-container" style="display:flex;align-items:center;gap:8px;">
+      <span id="preview-status-icon" style="font-size:16px;">⏳</span>
+      <span id="preview-status" style="padding:4px 10px;border-radius:6px;background:#21262d;color:#8b949e;font-size:11px;font-weight:500;">Validating...</span>
+    </div>
   </header>
 
-  <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;">
+  <style>
+    .preview-card {
+      border: 1px solid #21262d;
+      border-radius: 6px;
+      background: linear-gradient(135deg, #161b22 0%, #0d1117 100%);
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .preview-section-title {
+      font-size: 12px;
+      color: #484f58;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin: 0 0 12px;
+      font-weight: 600;
+    }
+  </style>
+
+  <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;padding:12px 16px;">
 
     <!-- Topology Graph Section -->
-    <section class="section" style="flex:0 0 auto;border-bottom:1px solid #21262d;padding:12px 16px;">
-      <h2 style="font-size:10px;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin:0 0 8px;padding:0;">Topology</h2>
-      <svg id="preview-graph-svg" style="width:100%;height:140px;background:#161b22;border:1px solid #21262d;border-radius:4px;display:block;"></svg>
+    <section class="preview-card">
+      <h2 class="preview-section-title">Topology Graph</h2>
+      <svg id="preview-graph-svg" style="width:100%;height:150px;background:#0d1117;border:1px solid #21262d;border-radius:4px;"></svg>
+      <div id="preview-graph-legend" style="font-size:11px;color:#8b949e;margin-top:8px;display:flex;gap:16px;flex-wrap:wrap;">
+        <div><span style="display:inline-block;width:8px;height:8px;background:#1f6feb;border-radius:50%;margin-right:4px;"></span>Agent</div>
+        <div><span style="display:inline-block;width:8px;height:8px;background:#238636;border-radius:50%;margin-right:4px;"></span>Synthesizer</div>
+      </div>
     </section>
 
     <!-- Execution Plan Section -->
-    <section class="section" style="flex:0 0 auto;border-bottom:1px solid #21262d;padding:12px 16px;">
-      <h2 style="font-size:10px;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin:0 0 8px;padding:0;">Execution Plan</h2>
-      <pre id="preview-plan" class="mock-input" style="background:#161b22;border:1px solid #21262d;border-radius:4px;padding:10px;color:#8b949e;font-size:11px;line-height:1.5;margin:0;white-space:pre-wrap;word-break:break-word;max-height:200px;overflow-y:auto;">loading plan…</pre>
+    <section class="preview-card">
+      <h2 class="preview-section-title">Execution Plan</h2>
+      <div id="preview-plan" style="font-family:monospace;font-size:11px;color:#8b949e;line-height:1.6;white-space:pre-wrap;">loading plan…</div>
     </section>
 
     <!-- Validation Results Section -->
-    <section class="section" style="flex:1;border-bottom:1px solid #21262d;padding:12px 16px;overflow-y:auto;">
-      <h2 style="font-size:10px;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin:0 0 8px;padding:0;">Validation</h2>
-      <div id="preview-validation" style="font-size:11px;line-height:1.6;">
-        <p style="color:#8b949e;margin:0;">Running validation…</p>
-      </div>
+    <section class="preview-card">
+      <h2 class="preview-section-title">Validation Results</h2>
+      <div id="preview-validation" style="font-size:11px;line-height:1.6;">running validation…</div>
     </section>
 
   </div>
 
   <!-- Action Buttons -->
   <footer style="display:flex;gap:8px;padding:12px 16px;border-top:1px solid #21262d;background:#161b22;flex-shrink:0;">
-    <button class="mock-button" onclick="editBlueprint()" style="flex:1;padding:8px 12px;background:#1f6feb;color:#e6edf3;border:1px solid #1f6feb;border-radius:4px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:500;">
-      Edit Blueprint
-    </button>
-    <button class="mock-button" onclick="confirmPreview()" style="flex:1;padding:8px 12px;background:#238636;color:#e6edf3;border:1px solid #238636;border-radius:4px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:500;">
-      Execute Swarm
-    </button>
+    <button id="preview-edit" onclick="editBlueprint()" style="flex:1;padding:10px 12px;background:#1f6feb;color:#e6edf3;border:1px solid #1f6feb;border-radius:4px;cursor:pointer;font-weight:500;transition:all 0.2s;font-family:inherit;font-size:12px;">Edit Blueprint</button>
+    <button id="preview-execute" onclick="executeSwarm()" style="flex:1;padding:10px 12px;background:#238636;color:#e6edf3;border:1px solid #238636;border-radius:4px;cursor:pointer;font-weight:500;transition:all 0.2s;font-family:inherit;font-size:12px;" disabled>Execute Swarm</button>
   </footer>
 
 </div>
@@ -52,9 +71,8 @@
    * Called from dashboard or CLI wrapper
    */
 
-  function confirmPreview() {
-    const plan = document.getElementById('preview-plan').textContent;
-    console.log('Executing swarm with plan:', plan);
+  function executeSwarm() {
+    console.log('Execute swarm');
     // In real integration: trigger swarm execution via parent window or API
     if (window.parent && window.parent.postMessage) {
       window.parent.postMessage({ type: 'preview_confirm', action: 'execute' }, '*');
@@ -62,10 +80,95 @@
   }
 
   function editBlueprint() {
-    console.log('Opening blueprint editor...');
+    console.log('Edit blueprint');
     // In real integration: navigate to editor or trigger edit mode
     if (window.parent && window.parent.postMessage) {
       window.parent.postMessage({ type: 'preview_confirm', action: 'edit' }, '*');
+    }
+  }
+
+  function setExecuteButtonState(isEnabled) {
+    const btn = document.getElementById('preview-execute');
+    btn.disabled = !isEnabled;
+    btn.style.opacity = isEnabled ? '1' : '0.5';
+  }
+
+  function renderValidation(errors, warnings, info) {
+    let html = '';
+
+    if (errors.length === 0 && warnings.length === 0) {
+      html = '<div style="padding:12px;background:#238636;color:#e6edf3;border-radius:4px;font-weight:500;">✅ All checks passed</div>';
+    } else if (errors.length > 0) {
+      html += '<div style="padding:12px;background:#f85149;color:#e6edf3;border-radius:4px;margin-bottom:12px;font-weight:500;">❌ ' + errors.length + ' error(s)</div>';
+      errors.forEach((err, i) => {
+        html += '<div style="padding:8px;background:#161b22;border-left:3px solid #f85149;margin-bottom:6px;">';
+        html += '<span style="color:#f85149;">❌</span> ' + err + '</div>';
+      });
+    } else if (warnings.length > 0) {
+      html += '<div style="padding:12px;background:#d29922;color:#e6edf3;border-radius:4px;margin-bottom:12px;font-weight:500;">⚠️ ' + warnings.length + ' warning(s)</div>';
+      warnings.forEach(warn => {
+        html += '<div style="padding:8px;background:#161b22;border-left:3px solid #d29922;margin-bottom:6px;">';
+        html += '<span style="color:#d29922;">⚠️</span> ' + warn + '</div>';
+      });
+    }
+
+    document.getElementById('preview-validation').innerHTML = html;
+  }
+
+  function updateStatusBadge(hasErrors, hasWarnings) {
+    const icon = document.getElementById('preview-status-icon');
+    const badge = document.getElementById('preview-status');
+
+    if (hasErrors) {
+      icon.textContent = '❌';
+      badge.textContent = 'Errors';
+      badge.style.background = '#f85149';
+      badge.style.color = '#e6edf3';
+    } else if (hasWarnings) {
+      icon.textContent = '⚠️';
+      badge.textContent = 'Warnings';
+      badge.style.background = '#d29922';
+      badge.style.color = '#e6edf3';
+    } else {
+      icon.textContent = '✅';
+      badge.textContent = 'Ready';
+      badge.style.background = '#238636';
+      badge.style.color = '#e6edf3';
+    }
+  }
+
+  function renderExecutionPlan(stages) {
+    let html = '';
+    stages.forEach((stage, idx) => {
+      const isFirst = idx === 0;
+      const icon = isFirst ? '▼' : '▶';
+      html += '<div style="margin-bottom:8px;">';
+      html += '<div onclick="toggleStage(\'stage-' + idx + '\')" style="cursor:pointer;padding:8px;background:#161b22;border:1px solid #21262d;border-radius:4px;">';
+      html += '<span id="stage-' + idx + '-icon">' + icon + '</span> ';
+      html += '<span style="color:#1f6feb;font-weight:600;">Stage ' + (idx + 1) + '</span> ';
+      html += '<span style="color:#8b949e;font-size:10px;">(' + (stage.parallel ? 'parallel' : 'sequential') + ')</span></div>';
+      html += '<div id="stage-' + idx + '-content" style="display:' + (isFirst ? 'block' : 'none') + ';margin-top:6px;padding-left:12px;">';
+      if (stage.agents) {
+        stage.agents.forEach(agent => {
+          html += '<div style="padding:8px;background:#0d1117;border-left:2px solid #30363d;margin-bottom:6px;">';
+          html += '<div style="color:#58a6ff;">📌 ' + agent.name + '</div>';
+          html += '</div>';
+        });
+      }
+      html += '</div></div>';
+    });
+    document.getElementById('preview-plan').innerHTML = html;
+  }
+
+  function toggleStage(id) {
+    const content = document.getElementById(id + '-content');
+    const icon = document.getElementById(id + '-icon');
+    if (content.style.display === 'none') {
+      content.style.display = 'block';
+      icon.textContent = '▼';
+    } else {
+      content.style.display = 'none';
+      icon.textContent = '▶';
     }
   }
 
@@ -80,77 +183,25 @@
     }
 
     if (blueprint.stages) {
-      // Render execution plan
-      const planText = blueprint.stages
-        .map((stage, i) => `Stage ${i + 1}: ${stage.join(', ')}`)
-        .join('\n');
-      document.getElementById('preview-plan').textContent = planText || 'No plan';
+      // Render execution plan with collapsible stages
+      const stagesData = blueprint.stages.map((stage, i) => ({
+        agents: Array.isArray(stage) ? stage.map(name => ({ name })) : stage,
+        parallel: Array.isArray(stage)
+      }));
+      renderExecutionPlan(stagesData);
     }
 
     if (blueprint.validation) {
-      // Render validation results
-      const validationDiv = document.getElementById('preview-validation');
-      while (validationDiv.firstChild) validationDiv.removeChild(validationDiv.firstChild);
+      // Render validation results organized by severity
+      const errors = blueprint.validation.errors || [];
+      const warnings = blueprint.validation.warnings || [];
+      renderValidation(errors, warnings, []);
 
-      if (blueprint.validation.errors && blueprint.validation.errors.length > 0) {
-        const errors = document.createElement('div');
-        errors.style.cssText = 'border-left:3px solid #f85149;padding:8px 12px;background:#161b22;border-radius:4px;margin-bottom:8px;';
+      // Update status badge
+      updateStatusBadge(errors.length > 0, warnings.length > 0);
 
-        const title = document.createElement('p');
-        title.style.cssText = 'color:#f85149;margin:0 0 4px;font-weight:500;';
-        title.textContent = 'Errors';
-        errors.appendChild(title);
-
-        blueprint.validation.errors.forEach(e => {
-          const item = document.createElement('p');
-          item.style.cssText = 'color:#8b949e;margin:2px 0;font-size:10px;';
-          item.textContent = e;
-          errors.appendChild(item);
-        });
-        validationDiv.appendChild(errors);
-      }
-
-      if (blueprint.validation.warnings && blueprint.validation.warnings.length > 0) {
-        const warnings = document.createElement('div');
-        warnings.style.cssText = 'border-left:3px solid #d29922;padding:8px 12px;background:#161b22;border-radius:4px;margin-bottom:8px;';
-
-        const title = document.createElement('p');
-        title.style.cssText = 'color:#d29922;margin:0 0 4px;font-weight:500;';
-        title.textContent = 'Warnings';
-        warnings.appendChild(title);
-
-        blueprint.validation.warnings.forEach(w => {
-          const item = document.createElement('p');
-          item.style.cssText = 'color:#8b949e;margin:2px 0;font-size:10px;';
-          item.textContent = w;
-          warnings.appendChild(item);
-        });
-        validationDiv.appendChild(warnings);
-      }
-
-      if (blueprint.validation.errors && blueprint.validation.errors.length === 0 &&
-          (!blueprint.validation.warnings || blueprint.validation.warnings.length === 0)) {
-        const ok = document.createElement('p');
-        ok.style.cssText = 'color:#3fb950;margin:0;';
-        ok.textContent = '✓ Blueprint is valid';
-        validationDiv.appendChild(ok);
-      }
-    }
-
-    // Update status
-    const status = document.getElementById('preview-status');
-    if (blueprint.validation && blueprint.validation.errors && blueprint.validation.errors.length > 0) {
-      status.textContent = 'error';
-      status.style.background = '#f8514922';
-      status.style.color = '#f85149';
-    } else if (blueprint.validation && blueprint.validation.warnings && blueprint.validation.warnings.length > 0) {
-      status.textContent = 'warning';
-      status.style.background = '#d2992222';
-      status.style.color = '#d29922';
-    } else {
-      status.textContent = 'valid';
-      status.style.background = '#23863633';
-      status.style.color = '#3fb950';
+      // Enable/disable execute button based on errors
+      setExecuteButtonState(errors.length === 0);
     }
   }
 
