@@ -1,13 +1,27 @@
 <!-- wizard.html: Interactive multi-step blueprint creation wizard -->
 
+<style>
+  #wizard-progress-bar {
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  #wizard-title {
+    transition: color 0.2s ease;
+  }
+</style>
+
 <div id="wizard-container" style="display:flex;flex-direction:column;height:100%;background:#0d1117;color:#e6edf3;font-family:'SF Mono','Cascadia Code',monospace;font-size:12px;">
 
-  <header style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #21262d;background:#161b22;flex-shrink:0;">
-    <div>
-      <h1 id="wizard-title" style="font-size:13px;color:#58a6ff;margin:0;">New Blueprint</h1>
-      <p id="wizard-subtitle" class="subtitle" style="color:#8b949e;font-size:11px;margin:4px 0 0;"></p>
+  <header style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #21262d;background:#161b22;flex-shrink:0;flex-wrap:wrap;gap:12px;">
+    <div style="flex:1;min-width:0;">
+      <h1 id="wizard-title" style="font-size:18px;font-weight:600;color:#58a6ff;margin:0;">New Blueprint</h1>
+      <p id="wizard-subtitle" style="color:#8b949e;font-size:12px;margin:4px 0 0;line-height:1.4;"></p>
     </div>
-    <span id="wizard-counter" style="padding:4px 10px;border-radius:6px;background:#21262d;color:#8b949e;font-size:11px;">Step 1 of 6</span>
+    <div id="wizard-progress" style="flex:1;min-width:200px;display:flex;align-items:center;gap:8px;">
+      <div style="flex:1;height:4px;background:#21262d;border-radius:2px;overflow:hidden;">
+        <div id="wizard-progress-bar" style="height:100%;background:#1f6feb;width:16.67%;transition:width 0.3s ease;border-radius:2px;"></div>
+      </div>
+      <span id="wizard-step-count" style="color:#8b949e;font-size:11px;white-space:nowrap;">1 of 6</span>
+    </div>
   </header>
 
   <!-- Step Content Area -->
@@ -124,7 +138,6 @@
   function renderStep() {
     const step = STEPS[currentStep];
     const content = document.getElementById('wizard-content');
-    const counter = document.getElementById('wizard-counter');
     const title = document.getElementById('wizard-title');
     const subtitle = document.getElementById('wizard-subtitle');
     const prevBtn = document.getElementById('wizard-prev');
@@ -133,7 +146,11 @@
     // Update header
     title.textContent = step.title;
     subtitle.textContent = step.subtitle;
-    counter.textContent = `Step ${currentStep + 1} of ${STEPS.length}`;
+
+    // Update progress bar
+    const progress = ((currentStep + 1) / STEPS.length) * 100;
+    document.getElementById('wizard-progress-bar').style.width = progress + '%';
+    document.getElementById('wizard-step-count').textContent = `${currentStep + 1} of ${STEPS.length}`;
 
     // Disable/enable prev button
     prevBtn.disabled = currentStep === 0;
