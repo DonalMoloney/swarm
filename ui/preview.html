@@ -94,25 +94,51 @@
   }
 
   function renderValidation(errors, warnings, info) {
-    let html = '';
+    const validationDiv = document.getElementById('preview-validation');
+    validationDiv.innerHTML = '';
 
     if (errors.length === 0 && warnings.length === 0) {
-      html = '<div style="padding:12px;background:#238636;color:#e6edf3;border-radius:4px;font-weight:500;">✅ All checks passed</div>';
+      const passDiv = document.createElement('div');
+      passDiv.style.cssText = 'padding:12px;background:#238636;color:#e6edf3;border-radius:4px;font-weight:500;';
+      passDiv.textContent = '✅ All checks passed';
+      validationDiv.appendChild(passDiv);
     } else if (errors.length > 0) {
-      html += '<div style="padding:12px;background:#f85149;color:#e6edf3;border-radius:4px;margin-bottom:12px;font-weight:500;">❌ ' + errors.length + ' error(s)</div>';
-      errors.forEach((err, i) => {
-        html += '<div style="padding:8px;background:#161b22;border-left:3px solid #f85149;margin-bottom:6px;">';
-        html += '<span style="color:#f85149;">❌</span> ' + err + '</div>';
+      const headerDiv = document.createElement('div');
+      headerDiv.style.cssText = 'padding:12px;background:#f85149;color:#e6edf3;border-radius:4px;margin-bottom:12px;font-weight:500;';
+      headerDiv.textContent = '❌ ' + errors.length + ' error(s)';
+      validationDiv.appendChild(headerDiv);
+
+      errors.forEach((err) => {
+        const errDiv = document.createElement('div');
+        errDiv.style.cssText = 'padding:8px;background:#161b22;border-left:3px solid #f85149;margin-bottom:6px;';
+        const icon = document.createElement('span');
+        icon.style.color = '#f85149';
+        icon.textContent = '❌ ';
+        const msg = document.createElement('span');
+        msg.textContent = err;
+        errDiv.appendChild(icon);
+        errDiv.appendChild(msg);
+        validationDiv.appendChild(errDiv);
       });
     } else if (warnings.length > 0) {
-      html += '<div style="padding:12px;background:#d29922;color:#e6edf3;border-radius:4px;margin-bottom:12px;font-weight:500;">⚠️ ' + warnings.length + ' warning(s)</div>';
-      warnings.forEach(warn => {
-        html += '<div style="padding:8px;background:#161b22;border-left:3px solid #d29922;margin-bottom:6px;">';
-        html += '<span style="color:#d29922;">⚠️</span> ' + warn + '</div>';
+      const headerDiv = document.createElement('div');
+      headerDiv.style.cssText = 'padding:12px;background:#d29922;color:#e6edf3;border-radius:4px;margin-bottom:12px;font-weight:500;';
+      headerDiv.textContent = '⚠️ ' + warnings.length + ' warning(s)';
+      validationDiv.appendChild(headerDiv);
+
+      warnings.forEach((warn) => {
+        const warnDiv = document.createElement('div');
+        warnDiv.style.cssText = 'padding:8px;background:#161b22;border-left:3px solid #d29922;margin-bottom:6px;';
+        const icon = document.createElement('span');
+        icon.style.color = '#d29922';
+        icon.textContent = '⚠️ ';
+        const msg = document.createElement('span');
+        msg.textContent = warn;
+        warnDiv.appendChild(icon);
+        warnDiv.appendChild(msg);
+        validationDiv.appendChild(warnDiv);
       });
     }
-
-    document.getElementById('preview-validation').innerHTML = html;
   }
 
   function updateStatusBadge(hasErrors, hasWarnings) {
@@ -138,26 +164,60 @@
   }
 
   function renderExecutionPlan(stages) {
-    let html = '';
+    const planDiv = document.getElementById('preview-plan');
+    planDiv.innerHTML = '';
+
     stages.forEach((stage, idx) => {
       const isFirst = idx === 0;
       const icon = isFirst ? '▼' : '▶';
-      html += '<div style="margin-bottom:8px;">';
-      html += '<div onclick="toggleStage(\'stage-' + idx + '\')" style="cursor:pointer;padding:8px;background:#161b22;border:1px solid #21262d;border-radius:4px;">';
-      html += '<span id="stage-' + idx + '-icon">' + icon + '</span> ';
-      html += '<span style="color:#1f6feb;font-weight:600;">Stage ' + (idx + 1) + '</span> ';
-      html += '<span style="color:#8b949e;font-size:10px;">(' + (stage.parallel ? 'parallel' : 'sequential') + ')</span></div>';
-      html += '<div id="stage-' + idx + '-content" style="display:' + (isFirst ? 'block' : 'none') + ';margin-top:6px;padding-left:12px;">';
+
+      const stageContainer = document.createElement('div');
+      stageContainer.style.marginBottom = '8px';
+
+      const stageHeader = document.createElement('div');
+      stageHeader.style.cssText = 'cursor:pointer;padding:8px;background:#161b22;border:1px solid #21262d;border-radius:4px;';
+      stageHeader.onclick = function() { toggleStage('stage-' + idx); };
+
+      const iconSpan = document.createElement('span');
+      iconSpan.id = 'stage-' + idx + '-icon';
+      iconSpan.textContent = icon;
+
+      const stageLabel = document.createElement('span');
+      stageLabel.style.cssText = 'color:#1f6feb;font-weight:600;';
+      stageLabel.textContent = 'Stage ' + (idx + 1);
+
+      const stageModeSpan = document.createElement('span');
+      stageModeSpan.style.cssText = 'color:#8b949e;font-size:10px;';
+      stageModeSpan.textContent = '(' + (stage.parallel ? 'parallel' : 'sequential') + ')';
+
+      stageHeader.appendChild(iconSpan);
+      stageHeader.appendChild(document.createTextNode(' '));
+      stageHeader.appendChild(stageLabel);
+      stageHeader.appendChild(document.createTextNode(' '));
+      stageHeader.appendChild(stageModeSpan);
+
+      const stageContent = document.createElement('div');
+      stageContent.id = 'stage-' + idx + '-content';
+      stageContent.style.cssText = 'display:' + (isFirst ? 'block' : 'none') + ';margin-top:6px;padding-left:12px;';
+
       if (stage.agents) {
         stage.agents.forEach(agent => {
-          html += '<div style="padding:8px;background:#0d1117;border-left:2px solid #30363d;margin-bottom:6px;">';
-          html += '<div style="color:#58a6ff;">📌 ' + agent.name + '</div>';
-          html += '</div>';
+          const agentDiv = document.createElement('div');
+          agentDiv.style.cssText = 'padding:8px;background:#0d1117;border-left:2px solid #30363d;margin-bottom:6px;';
+
+          const nameDiv = document.createElement('div');
+          nameDiv.style.color = '#58a6ff';
+          nameDiv.textContent = '📌 ' + agent.name;
+
+          agentDiv.appendChild(nameDiv);
+          stageContent.appendChild(agentDiv);
         });
       }
-      html += '</div></div>';
+
+      stageContainer.appendChild(stageHeader);
+      stageContainer.appendChild(stageContent);
+      planDiv.appendChild(stageContainer);
     });
-    document.getElementById('preview-plan').innerHTML = html;
   }
 
   function toggleStage(id) {
