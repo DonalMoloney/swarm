@@ -1,0 +1,161 @@
+<!-- preview.html: Blueprint validation & topology preview -->
+
+<div id="preview-container" style="display:flex;flex-direction:column;height:100%;background:#0d1117;color:#e6edf3;font-family:'SF Mono','Cascadia Code',monospace;font-size:12px;">
+
+  <header style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #21262d;background:#161b22;flex-shrink:0;">
+    <div>
+      <h1 id="preview-name" style="font-size:13px;color:#58a6ff;margin:0;">Blueprint Preview</h1>
+      <p id="preview-desc" style="color:#8b949e;font-size:11px;margin:4px 0 0;"></p>
+    </div>
+    <span id="preview-status" style="padding:4px 10px;border-radius:6px;background:#21262d;color:#8b949e;font-size:11px;">ready</span>
+  </header>
+
+  <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;">
+
+    <!-- Topology Graph Section -->
+    <section class="section" style="flex:0 0 auto;border-bottom:1px solid #21262d;padding:12px 16px;">
+      <h2 style="font-size:10px;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin:0 0 8px;padding:0;">Topology</h2>
+      <svg id="preview-graph-svg" style="width:100%;height:140px;background:#161b22;border:1px solid #21262d;border-radius:4px;display:block;"></svg>
+    </section>
+
+    <!-- Execution Plan Section -->
+    <section class="section" style="flex:0 0 auto;border-bottom:1px solid #21262d;padding:12px 16px;">
+      <h2 style="font-size:10px;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin:0 0 8px;padding:0;">Execution Plan</h2>
+      <pre id="preview-plan" class="mock-input" style="background:#161b22;border:1px solid #21262d;border-radius:4px;padding:10px;color:#8b949e;font-size:11px;line-height:1.5;margin:0;white-space:pre-wrap;word-break:break-word;max-height:200px;overflow-y:auto;">loading plan…</pre>
+    </section>
+
+    <!-- Validation Results Section -->
+    <section class="section" style="flex:1;border-bottom:1px solid #21262d;padding:12px 16px;overflow-y:auto;">
+      <h2 style="font-size:10px;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin:0 0 8px;padding:0;">Validation</h2>
+      <div id="preview-validation" style="font-size:11px;line-height:1.6;">
+        <p style="color:#8b949e;margin:0;">Running validation…</p>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Action Buttons -->
+  <footer style="display:flex;gap:8px;padding:12px 16px;border-top:1px solid #21262d;background:#161b22;flex-shrink:0;">
+    <button class="mock-button" onclick="editBlueprint()" style="flex:1;padding:8px 12px;background:#1f6feb;color:#e6edf3;border:1px solid #1f6feb;border-radius:4px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:500;">
+      Edit Blueprint
+    </button>
+    <button class="mock-button" onclick="confirmPreview()" style="flex:1;padding:8px 12px;background:#238636;color:#e6edf3;border:1px solid #238636;border-radius:4px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:500;">
+      Execute Swarm
+    </button>
+  </footer>
+
+</div>
+
+<script>
+  /**
+   * Preview UI Functions
+   * Called from dashboard or CLI wrapper
+   */
+
+  function confirmPreview() {
+    const plan = document.getElementById('preview-plan').textContent;
+    console.log('Executing swarm with plan:', plan);
+    // In real integration: trigger swarm execution via parent window or API
+    if (window.parent && window.parent.postMessage) {
+      window.parent.postMessage({ type: 'preview_confirm', action: 'execute' }, '*');
+    }
+  }
+
+  function editBlueprint() {
+    console.log('Opening blueprint editor...');
+    // In real integration: navigate to editor or trigger edit mode
+    if (window.parent && window.parent.postMessage) {
+      window.parent.postMessage({ type: 'preview_confirm', action: 'edit' }, '*');
+    }
+  }
+
+  /**
+   * Populate preview from blueprint data
+   * Called with: { name, description, flow, agents, stages, validation }
+   */
+  function renderPreview(blueprint) {
+    if (blueprint.name) {
+      document.getElementById('preview-name').textContent = blueprint.name + ' Preview';
+      document.getElementById('preview-desc').textContent = blueprint.description || 'No description';
+    }
+
+    if (blueprint.stages) {
+      // Render execution plan
+      const planText = blueprint.stages
+        .map((stage, i) => `Stage ${i + 1}: ${stage.join(', ')}`)
+        .join('\n');
+      document.getElementById('preview-plan').textContent = planText || 'No plan';
+    }
+
+    if (blueprint.validation) {
+      // Render validation results
+      const validationDiv = document.getElementById('preview-validation');
+      while (validationDiv.firstChild) validationDiv.removeChild(validationDiv.firstChild);
+
+      if (blueprint.validation.errors && blueprint.validation.errors.length > 0) {
+        const errors = document.createElement('div');
+        errors.style.cssText = 'border-left:3px solid #f85149;padding:8px 12px;background:#161b22;border-radius:4px;margin-bottom:8px;';
+
+        const title = document.createElement('p');
+        title.style.cssText = 'color:#f85149;margin:0 0 4px;font-weight:500;';
+        title.textContent = 'Errors';
+        errors.appendChild(title);
+
+        blueprint.validation.errors.forEach(e => {
+          const item = document.createElement('p');
+          item.style.cssText = 'color:#8b949e;margin:2px 0;font-size:10px;';
+          item.textContent = e;
+          errors.appendChild(item);
+        });
+        validationDiv.appendChild(errors);
+      }
+
+      if (blueprint.validation.warnings && blueprint.validation.warnings.length > 0) {
+        const warnings = document.createElement('div');
+        warnings.style.cssText = 'border-left:3px solid #d29922;padding:8px 12px;background:#161b22;border-radius:4px;margin-bottom:8px;';
+
+        const title = document.createElement('p');
+        title.style.cssText = 'color:#d29922;margin:0 0 4px;font-weight:500;';
+        title.textContent = 'Warnings';
+        warnings.appendChild(title);
+
+        blueprint.validation.warnings.forEach(w => {
+          const item = document.createElement('p');
+          item.style.cssText = 'color:#8b949e;margin:2px 0;font-size:10px;';
+          item.textContent = w;
+          warnings.appendChild(item);
+        });
+        validationDiv.appendChild(warnings);
+      }
+
+      if (blueprint.validation.errors && blueprint.validation.errors.length === 0 &&
+          (!blueprint.validation.warnings || blueprint.validation.warnings.length === 0)) {
+        const ok = document.createElement('p');
+        ok.style.cssText = 'color:#3fb950;margin:0;';
+        ok.textContent = '✓ Blueprint is valid';
+        validationDiv.appendChild(ok);
+      }
+    }
+
+    // Update status
+    const status = document.getElementById('preview-status');
+    if (blueprint.validation && blueprint.validation.errors && blueprint.validation.errors.length > 0) {
+      status.textContent = 'error';
+      status.style.background = '#f8514922';
+      status.style.color = '#f85149';
+    } else if (blueprint.validation && blueprint.validation.warnings && blueprint.validation.warnings.length > 0) {
+      status.textContent = 'warning';
+      status.style.background = '#d2992222';
+      status.style.color = '#d29922';
+    } else {
+      status.textContent = 'valid';
+      status.style.background = '#23863633';
+      status.style.color = '#3fb950';
+    }
+  }
+
+  // Auto-load preview data if available (from query params or global state)
+  if (window.previewData) {
+    renderPreview(window.previewData);
+  }
+</script>
