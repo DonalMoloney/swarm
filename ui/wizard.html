@@ -17,6 +17,11 @@
     100% { transform: scale(1) rotate(0deg); }
   }
 
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
   #wizard-progress-bar {
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
@@ -52,6 +57,10 @@
     opacity: 0.5;
     cursor: not-allowed;
   }
+
+  #wizard-success-icon {
+    animation: pulse 1s ease-in-out;
+  }
 </style>
 
 <div id="wizard-container" style="display:flex;flex-direction:column;height:100%;background:#0d1117;color:#e6edf3;font-family:'SF Mono','Cascadia Code',monospace;font-size:12px;">
@@ -75,8 +84,31 @@
   </div>
   <div id="wizard-feedback" style="padding:0 16px 8px;font-size:11px;height:20px;"></div>
 
+  <!-- Success Screen -->
+  <div id="wizard-success" style="display:none;flex:1;flex-direction:column;overflow-y:auto;padding:40px 16px;text-align:center;background:#0d1117;animation:fadeIn 0.3s ease;">
+    <div id="wizard-success-icon" style="font-size:64px;margin-bottom:24px;">✅</div>
+    <h2 style="font-size:24px;font-weight:600;color:#238636;margin:0 0 12px;">Blueprint Created Successfully!</h2>
+    <p style="color:#8b949e;font-size:13px;margin:0 0 24px;">Your swarm blueprint is ready to use.</p>
+
+    <div style="background:#161b22;border:1px solid #21262d;border-radius:6px;padding:16px;text-align:left;margin-bottom:24px;font-family:monospace;font-size:11px;max-height:250px;overflow-y:auto;">
+      <pre id="wizard-yaml-output" style="margin:0;color:#8b949e;white-space:pre-wrap;word-break:break-word;line-height:1.5;"></pre>
+    </div>
+
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+      <button onclick="executeNow()" style="padding:10px 20px;background:#238636;color:#e6edf3;border:none;border-radius:4px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:500;transition:all 0.15s;" onmouseover="this.style.filter='brightness(1.1)'" onmouseout="this.style.filter='brightness(1)'">
+        Execute Now
+      </button>
+      <button onclick="editBlueprint()" style="padding:10px 20px;background:#1f6feb;color:#e6edf3;border:none;border-radius:4px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:500;transition:all 0.15s;" onmouseover="this.style.filter='brightness(1.1)'" onmouseout="this.style.filter='brightness(1)'">
+        Edit & Review
+      </button>
+      <button onclick="copyToClipboard()" style="padding:10px 20px;background:#21262d;color:#8b949e;border:1px solid #30363d;border-radius:4px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:500;transition:all 0.15s;" onmouseover="this.style.filter='brightness(1.1)'" onmouseout="this.style.filter='brightness(1)'">
+        Copy YAML
+      </button>
+    </div>
+  </div>
+
   <!-- Navigation Buttons -->
-  <footer style="display:flex;gap:8px;padding:12px 16px;border-top:1px solid #21262d;background:#161b22;flex-shrink:0;">
+  <footer id="wizard-footer" style="display:flex;gap:8px;padding:12px 16px;border-top:1px solid #21262d;background:#161b22;flex-shrink:0;">
     <button id="wizard-prev" class="wizard-button" onclick="wizardPrev()" style="flex:0 1 auto;padding:8px 16px;background:#21262d;color:#8b949e;border:1px solid #30363d;border-radius:4px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:500;transition:all 0.15s;">
       Previous
     </button>
@@ -359,33 +391,63 @@
       }, '*');
     }
 
-    // Show success message
-    const content = document.getElementById('wizard-content');
-    content.innerHTML = '';
+    showSuccessScreen();
+  }
 
-    const success = document.createElement('div');
-    success.style.cssText = 'text-align:center;padding:40px 20px;';
+  function showSuccessScreen() {
+    const yaml = generateYAML();
+    const yamlDiv = document.getElementById('wizard-yaml-output');
+    if (yamlDiv) {
+      yamlDiv.textContent = yaml;
+    }
 
-    const icon = document.createElement('div');
-    icon.style.cssText = 'font-size:48px;margin-bottom:16px;';
-    icon.textContent = '✓';
+    document.getElementById('wizard-content').style.display = 'none';
+    document.getElementById('wizard-footer').style.display = 'none';
+    document.getElementById('wizard-success').style.display = 'flex';
+  }
 
-    const msg = document.createElement('h2');
-    msg.style.cssText = 'color:#3fb950;font-size:13px;margin:0 0 8px;font-weight:500;';
-    msg.textContent = 'Blueprint Created!';
+  function generateYAML() {
+    let yaml = 'name: ' + (formData.name || 'my-blueprint') + '\n';
+    yaml += 'description: "' + (formData.description || '') + '"\n';
+    yaml += 'flow: "' + (formData.flow || '') + '"\n';
+    yaml += 'agents:\n';
 
-    const detail = document.createElement('p');
-    detail.style.cssText = 'color:#8b949e;font-size:11px;margin:0;';
-    detail.textContent = 'Your blueprint "' + (formData.name || 'untitled') + '" is ready to use.';
+    if (formData.agents) {
+      const agents = formData.agents.split(',').map(a => a.trim()).filter(a => a);
+      agents.forEach(name => {
+        yaml += '  ' + name + ':\n';
+        yaml += '    prompt: "Agent ' + name + ' prompt"\n';
+      });
+    }
 
-    success.appendChild(icon);
-    success.appendChild(msg);
-    success.appendChild(detail);
-    content.appendChild(success);
+    return yaml;
+  }
 
-    // Hide navigation
-    document.getElementById('wizard-prev').style.display = 'none';
-    document.getElementById('wizard-next').style.display = 'none';
+  function executeNow() {
+    const yaml = generateYAML();
+    console.log('Execute swarm now with YAML:', yaml);
+    alert('Execute Now - This would trigger: /swarm ' + formData.name);
+  }
+
+  function editBlueprint() {
+    console.log('Edit blueprint');
+    alert('Edit & Review - Open blueprint editor');
+  }
+
+  function copyToClipboard() {
+    const yaml = generateYAML();
+    navigator.clipboard.writeText(yaml).then(() => {
+      const btn = event.target;
+      const originalText = btn.textContent;
+      btn.textContent = 'Copied!';
+      btn.style.color = '#238636';
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.style.color = '#8b949e';
+      }, 2000);
+    }).catch(() => {
+      alert('Failed to copy to clipboard');
+    });
   }
 
   // Initialize
