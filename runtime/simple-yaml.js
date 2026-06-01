@@ -1,13 +1,30 @@
 /**
  * Minimal YAML parser for the fixed swarm blueprint schema.
  * Avoids any npm dependency.
+ *
+ * Understands three nested "section" blocks — agents, groups, conditions —
+ * each shaped as:
+ *   <section>:
+ *     <key>:
+ *       <field>: <value>
+ * plus inline arrays:  agents: [a, b, c]
  */
+
+function parseInlineArray(v) {
+  return v.replace(/[\[\]]/g, '').split(',').map(s => s.trim()).filter(Boolean);
+}
+
+function stripQuotes(v) {
+  return v.replace(/^["']|["']$/g, '');
+}
+
+const SECTION_KEYS = ['agents', 'groups', 'conditions'];
 
 function parse(text) {
   const result = {};
   const lines = text.split('\n');
-  let inAgents = false;
-  let currentAgent = null;
+  let section = null;     // one of SECTION_KEYS, or null
+  let currentKey = null;  // current agent / group / condition name
 
   for (const line of lines) {
     if (!line.trim() || line.trim().startsWith('#')) continue;
@@ -16,35 +33,31 @@ function parse(text) {
     const content = line.trim();
 
     if (indent === 0) {
-      inAgents = false;
-      currentAgent = null;
+      section = null;
+      currentKey = null;
       const colonIdx = content.indexOf(':');
       if (colonIdx === -1) continue;
       const k = content.slice(0, colonIdx).trim();
       const v = content.slice(colonIdx + 1).trim();
 
-      if (k === 'agents') {
-        result.agents = {};
-        inAgents = true;
+      if (SECTION_KEYS.includes(k) && !v) {
+        result[k] = {};
+        section = k;
       } else if (v) {
-        result[k] = v.replace(/^["']|["']$/g, '');
+        result[k] = v.startsWith('[') ? parseInlineArray(v) : stripQuotes(v);
       }
-    } else if (inAgents && indent === 2) {
-      currentAgent = content.replace(':', '').trim();
-      result.agents[currentAgent] = {};
-    } else if (inAgents && indent === 4 && currentAgent) {
+    } else if (section && indent === 2) {
+      currentKey = content.replace(/:$/, '').trim();
+      result[section][currentKey] = {};
+    } else if (section && indent === 4 && currentKey) {
       const colonIdx = content.indexOf(':');
       if (colonIdx === -1) continue;
       const k = content.slice(0, colonIdx).trim();
       const v = content.slice(colonIdx + 1).trim();
-      if (k === 'tools') {
-        result.agents[currentAgent].tools = v
-          .replace(/[\[\]]/g, '')
-          .split(',')
-          .map(t => t.trim())
-          .filter(Boolean);
+      if ((section === 'agents' && k === 'tools') || v.startsWith('[')) {
+        result[section][currentKey][k] = parseInlineArray(v);
       } else {
-        result.agents[currentAgent][k] = v.replace(/^["']|["']$/g, '');
+        result[section][currentKey][k] = stripQuotes(v);
       }
     }
   }
