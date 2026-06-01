@@ -17,7 +17,7 @@ grounded in what already exists in the codebase versus what is genuinely missing
 | **Phase 2.2 — Compound Conditions & Fallback Retry** | ✅ Done | `AND`/`OR`/`NOT` compound conditions, fallback retry, `resolved_conditions` map. |
 | **Phase 3 — Reliable Execution Core** | ✅ Done | `contract.js` (structured output), `runner.js` (timeouts, retries, budgets, Phase-2 graph execution). 23/23 tests pass. |
 | **Phase 4 — Persistence & Results** | ✅ Done | Durable run archive, History tab wired to real store, replay from dashboard. |
-| **Phase 5 — Headless / CI Runner** | 🔲 Not started | `runner.js` is the foundation (CLI entry, exit codes) but no spec, no GitHub Action, no notifications. |
+| **Phase 5 — Headless / CI Runner** | ✅ Done | GitHub Actions workflow, zero-dep `notify.js` (GitHub PR comment + Slack), `--ci` annotation mode, `--notify-slack` / `--notify-pr` CLI flags. |
 | **Phase 6 — Authoring & Blueprint Library** | ✅ Done | `library.js`, versioning, templates, `swarm init` scaffolder, mature wizard. |
 | **Phase 7 — Observability & Cost** | ✅ Done | Token/cost accounting per run, metrics view in dashboard, budget alerts. |
 | **Phase 8 — Distribution & Onboarding** | 🔲 Not started | Marketplace packaging, quickstart, examples gallery, real documentation. |
@@ -61,21 +61,19 @@ linked per run in `swarms/output/`.
 
 ---
 
-## Phase 5 — Headless / CI Runner *(the named gap)*
+## Phase 5 — Headless / CI Runner *(shipped)*
 
 **Goal:** swarms run without a human at the REPL.
 
-**Foundation already in place:** `runtime/runner.js` is a fully working
-standalone CLI with proper exit codes. Running a blueprint headlessly works today:
-`node runtime/runner.js swarms/research.yaml "my task"`.
+**What shipped:**
 
-**Still missing:**
-- **GitHub Action** — `.github/workflows/swarm.yml`, trigger on PR/push/cron.
-- **Notifications** — GitHub PR comment / Slack webhook on completion or failure.
-- **CI-friendly log formatting** — structured output for log aggregators.
+- **`runtime/notify.js`** — zero-dependency notification module using Node built-ins. Posts markdown summary to GitHub PR comment and/or Slack webhook. Pure formatter functions exported for testing.
+- **`.github/workflows/swarm.yml`** — reusable GitHub Actions workflow (`workflow_dispatch` + `workflow_call`). Security-hardened: inputs bound to `env:` vars, validated with regex, `SWARM_TASK` passed via `spawnSync` args (never shell-interpolated). Uploads `swarms/output/` as artifacts.
+- **`--ci` flag** in `runtime/runner.js` — GitHub Actions annotation format (`::error::`, `::warning::`, `::notice::`, `::group::`/`::endgroup::`). Writes markdown summary to `$GITHUB_STEP_SUMMARY`.
+- **`--notify-slack <url>`** and **`--notify-pr <repo> <pr>`** CLI flags; also reads `SLACK_WEBHOOK_URL`, `SWARM_NOTIFY_REPO`, `SWARM_NOTIFY_PR` from env.
+- **`runtime/notify.test.js`** — 26 tests (no HTTP calls made).
 
-> The leap from "I run it while watching" to "it runs *for* me." The runner
-> exists; the CI wiring and notification layer are what remain.
+> The leap from "I run it while watching" to "it runs *for* me."
 
 ---
 
