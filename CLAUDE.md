@@ -132,9 +132,16 @@ When `groups` are present or the flow contains `if`, `compile()` emits an
 `execution_graph` (group + condition nodes) instead of linear `stages`.
 Phase-1 blueprints are unaffected.
 
-## Future Work
+## Roadmap
 
-- **CI/CD integration** — trigger swarms automatically on PRs, merges, or scheduled jobs (GitHub Actions, GitLab CI, etc.) without requiring a Claude Code interactive session
+The full phased plan from demo to end-to-end product lives in [`docs/superpowers/ROADMAP.md`](docs/superpowers/ROADMAP.md). Highlights:
+
+- **Phase 3 — Reliable execution core** (timeouts/retries, structured agent-output contract, cost caps)
+- **Phase 4 — Persistence & results** (durable run history, replay)
+- **Phase 5 — Headless / CI runner** — trigger swarms on PRs, merges, or schedules without an interactive Claude Code session
+- **Phases 6–9** — authoring/library, observability/cost, distribution, safety/governance
+
+**Development workflow:** each phase is built in its own **git worktree** under `../worktrees/` on a `phase-N-<slug>` branch, merged into `main` via PR. See the ROADMAP's "Development Workflow" section.
 
 ## Key Constraints
 
