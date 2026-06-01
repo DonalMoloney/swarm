@@ -41,6 +41,28 @@ phase (invoked explicitly), not wired in as `swarm.md`'s default.
 
 ---
 
+## Reconciliation with Shipped Phase 2 (added 2026-06-01)
+
+Phase 2 is now **implemented on `main`**, not merely designed. Verified facts
+that pin down this phase's integration points:
+
+- **`compile(blueprint)` return shape is the runner's routing signal.** Linear /
+  parallel flows return `{ stages: [{type:'parallel'|'sequential', agents:[…]}], … }`.
+  Phase 2 flows (any `groups`, or an `if` in `flow`) return
+  `{ execution_graph: { stages: [...] }, groups, conditions, … }` instead.
+  → The runner handles a plan with **`plan.stages`**; if **`plan.execution_graph`**
+  is present it refuses with a clear message and points to the LLM `swarm.md`
+  flow. (Replaces the spec's earlier vague "reject conditions" wording.)
+- **`simple-yaml.js` cannot parse a nested `limits:` block today.** It only
+  understands the `agents`/`groups`/`conditions` section blocks plus top-level
+  scalars/inline arrays; an unknown nested map is silently dropped. → A small,
+  tested parser extension to read a top-level `limits:` scalar block is part of
+  this phase.
+- **All YAML values parse as strings.** Per-agent `timeout`/`retries` and the
+  `limits` fields must be `Number()`-coerced in the runner.
+
+---
+
 ## Architecture
 
 ### Zero-dependency constraint
