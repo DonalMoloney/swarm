@@ -43,8 +43,18 @@ function parse(text) {
       if (SECTION_KEYS.includes(k) && !v) {
         result[k] = {};
         section = k;
+      } else if (k === 'limits' && !v) {
+        result.limits = {};
+        section = 'limits';
       } else if (v) {
         result[k] = v.startsWith('[') ? parseInlineArray(v) : stripQuotes(v);
+      }
+    } else if (section === 'limits' && indent === 2) {
+      const colonIdx = content.indexOf(':');
+      if (colonIdx !== -1) {
+        const lk = content.slice(0, colonIdx).trim();
+        const lv = content.slice(colonIdx + 1).trim();
+        result.limits[lk] = stripQuotes(lv);
       }
     } else if (section && indent === 2) {
       currentKey = content.replace(/:$/, '').trim();

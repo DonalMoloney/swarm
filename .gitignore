@@ -1,5 +1,6 @@
 .swarm/
 swarms/output/*.md
+swarms/output/*.json
 .superpowers/
 node_modules/
 mock-dashboard.html

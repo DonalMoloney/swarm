@@ -3,6 +3,11 @@ description: Fan-out parallel research then synthesise into a final report
 flow: "searcher, analyst → synthesiser"
 output: markdown
 
+limits:
+  agent_timeout: 300
+  agent_retries: 1
+  max_cost_usd: 1.00
+
 agents:
   searcher:
     role: Search the web for the most relevant and recent sources on the given task. Return a structured list of findings with URLs and key points.

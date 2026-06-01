@@ -152,7 +152,7 @@ Parse the stages from the blueprint's flow string. For each stage:
 **Parallel stage** (multiple agents separated by commas):
 - Emit `agent_start` for each agent: `node runtime/events.js agent_start <name> running "Starting…"`
 - Spawn all agents in this stage simultaneously using the Agent tool
-- Each agent prompt = the agent's `role` from the blueprint + "\n\nTask: " + TASK + (if CONTEXT_BLOCK is non-empty: "\n\n" + CONTEXT_BLOCK) + (if stage > 0: "\n\nPrevious stage output:\n" + prior_output)
+- Each agent prompt = the agent's `prompt` from the blueprint + "\n\nTask: " + TASK + (if CONTEXT_BLOCK is non-empty: "\n\n" + CONTEXT_BLOCK) + (if stage > 0: "\n\nPrevious stage output:\n" + prior_output) + the **contract suffix**: a fenced ```json block instructing the agent to end with `{ "status": "success|partial|error", "summary": "<one line>", ...extra fields }`. Parse that block from each agent's output; if absent, treat the raw text as `{status:"success", summary:<first line>}`.
 - After all complete, emit `agent_done` for each: `node runtime/events.js agent_done <name> done "<first 100 chars of output>"`
 
 **Sequential stage** (single agent):
@@ -270,3 +270,27 @@ Checkpoints are stored in `.swarm/checkpoints/<blueprint>/` and are automaticall
 - If an agent fails, emit `agent_error`, log the error, and continue with remaining agents
 - Pass a `[FAILED: <agent>]` marker in the context for downstream pipeline agents
 - If the dashboard port is taken, it will auto-increment — read the printed port from stdout
+
+## Programmatic runner (Phase 3)
+
+For linear/parallel blueprints (no groups/conditions), you may execute the swarm
+with enforced timeouts, retries, and budgets instead of spawning agents by hand:
+
+```bash
+node runtime/runner.js swarms/<blueprint>.yaml "<task>" [--max-cost <usd>] [--timeout <seconds>] [--model <name>]
+```
+
+The runner drives the `claude` CLI per agent, appends the same events to
+`.swarm/events.jsonl` (now including `tokens`, `cost_usd`, `status`, plus
+`agent_retry` and `budget_exceeded`), saves output, and records history.
+Blueprints that use Phase-2 groups/conditions are **not** handled by the runner —
+run those with the steps above. Per-run limits come from the blueprint's
+`limits:` block (or the CLI flags):
+
+```yaml
+limits:
+  agent_timeout: 300   # seconds per agent attempt
+  agent_retries: 1
+  max_cost_usd: 1.00   # per-run budget; run aborts if exceeded
+  max_tokens: 200000
+```
