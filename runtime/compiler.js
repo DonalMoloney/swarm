@@ -105,6 +105,68 @@ function validateBlueprint(blueprint) {
     }
   }
 
+  const VALID_CONDITION_TYPES = ['validation', 'agent_output'];
+  const VALID_CRITERIA = ['no-errors', 'no-warnings', 'all-pass'];
+
+  if (blueprint.conditions !== undefined) {
+    if (typeof blueprint.conditions !== 'object' || Array.isArray(blueprint.conditions)) {
+      errors.push('conditions must be an object');
+    } else {
+      const definedAgents = blueprint.agents ? Object.keys(blueprint.agents) : [];
+      for (const [cname, c] of Object.entries(blueprint.conditions)) {
+        if (!c || typeof c !== 'object' || Array.isArray(c)) {
+          errors.push(`Condition "${cname}" must be an object`);
+          continue;
+        }
+        if (!VALID_CONDITION_TYPES.includes(c.type)) {
+          errors.push(`Condition "${cname}" has invalid type "${c.type}" (valid: ${VALID_CONDITION_TYPES.join(', ')})`);
+          continue;
+        }
+        if (c.type === 'validation' && !VALID_CRITERIA.includes(c.criteria)) {
+          errors.push(`Condition "${cname}" has invalid criteria "${c.criteria}" (valid: ${VALID_CRITERIA.join(', ')})`);
+        }
+        if (c.type === 'agent_output') {
+          if (!c.source) errors.push(`Condition "${cname}" (agent_output) is missing "source"`);
+          else if (!definedAgents.includes(c.source)) errors.push(`Condition "${cname}" references undefined source agent "${c.source}"`);
+          if (!c.check) errors.push(`Condition "${cname}" (agent_output) is missing "check"`);
+          if (!c.threshold) errors.push(`Condition "${cname}" (agent_output) is missing "threshold"`);
+        }
+      }
+    }
+  }
+
+  if (blueprint.flow && /\bif\s/.test(blueprint.flow)) {
+    const definedConditions = blueprint.conditions ? Object.keys(blueprint.conditions) : [];
+    const definedGroups = blueprint.groups ? Object.keys(blueprint.groups) : [];
+    const definedAgents = blueprint.agents ? Object.keys(blueprint.agents) : [];
+    const isKnownTarget = (name) => definedGroups.includes(name) || definedAgents.includes(name);
+    const segments = blueprint.flow.split(/→|->/).map(s => s.trim()).filter(Boolean);
+
+    for (const seg of segments) {
+      if (/^if\s/.test(seg)) {
+        const m = seg.match(/^if\s+(.+?):\s*(.+?)\s+else:\s*(.+)$/);
+        if (!m) { errors.push(`Malformed conditional flow segment: "${seg}"`); continue; }
+        const cond = m[1].trim();
+        const trueTarget = m[2].trim();
+        const falseTarget = m[3].trim();
+        if (!definedConditions.includes(cond)) {
+          errors.push(`Flow references undefined condition "${cond}"`);
+        }
+        for (const target of [trueTarget, falseTarget]) {
+          if (!isKnownTarget(target)) {
+            errors.push(`Flow branch target "${target}" is not a defined group or agent`);
+          }
+        }
+      } else {
+        for (const name of seg.split(',').map(s => s.trim()).filter(Boolean)) {
+          if (!isKnownTarget(name)) {
+            errors.push(`Flow references "${name}" which is not a defined group or agent`);
+          }
+        }
+      }
+    }
+  }
+
   return errors;
 }
 
