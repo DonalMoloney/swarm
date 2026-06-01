@@ -33,4 +33,36 @@ function parseCliEnvelope(stdout) {
   };
 }
 
-module.exports = { buildAgentPrompt, parseCliEnvelope, CONTRACT_SUFFIX };
+const DEFAULTS = { agentTimeout: 300, agentRetries: 1, maxCostUsd: null, maxTokens: null };
+
+function shouldRetry({ exitCode, timedOut, structured }, attempt, maxRetries) {
+  if (attempt > maxRetries) return false;
+  return timedOut || exitCode !== 0 || !structured;
+}
+
+function budgetCheck(totals, limits) {
+  if (limits.maxCostUsd != null && totals.costUsd > limits.maxCostUsd) {
+    return { exceeded: true, metric: 'cost_usd', value: totals.costUsd, limit: limits.maxCostUsd };
+  }
+  if (limits.maxTokens != null && totals.tokens > limits.maxTokens) {
+    return { exceeded: true, metric: 'tokens', value: totals.tokens, limit: limits.maxTokens };
+  }
+  return { exceeded: false };
+}
+
+function num(v, fallback) { return v != null && v !== '' && !isNaN(Number(v)) ? Number(v) : fallback; }
+
+function resolveLimits(blueprint, opts = {}) {
+  const L = (blueprint && blueprint.limits) || {};
+  return {
+    agentTimeout: num(opts.timeout, num(L.agent_timeout, DEFAULTS.agentTimeout)),
+    agentRetries: num(L.agent_retries, DEFAULTS.agentRetries),
+    maxCostUsd: num(opts.maxCost, num(L.max_cost_usd, DEFAULTS.maxCostUsd)),
+    maxTokens: num(L.max_tokens, DEFAULTS.maxTokens),
+  };
+}
+
+module.exports = {
+  buildAgentPrompt, parseCliEnvelope, CONTRACT_SUFFIX,
+  shouldRetry, budgetCheck, resolveLimits, DEFAULTS,
+};
