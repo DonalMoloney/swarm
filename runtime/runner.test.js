@@ -62,3 +62,28 @@ test('resolveLimits merges defaults, blueprint, and CLI opts (strings coerced)',
   assert.equal(L.maxCostUsd, 2);          // CLI overrides blueprint
   assert.equal(L.maxTokens, null);        // default (no cap)
 });
+
+const path = require('node:path');
+const { runAgent } = require('./runner');
+
+const FAKE = path.join(__dirname, '..', 'test', 'fake-claude.js');
+
+test('runAgent happy path returns a structured contract', async () => {
+  process.env.SWARM_CLAUDE_BIN = FAKE;
+  const events = [];
+  const r = await runAgent({ name: 'a', prompt: 'hello', timeoutMs: 4000, maxRetries: 1, emit: e => events.push(e) });
+  assert.equal(r.status, 'success');
+  assert.equal(r.structured, true);
+  assert.equal(r.tokens, 120);
+  assert.ok(r.costUsd > 0);
+});
+
+test('runAgent times out, retries, then falls back', async () => {
+  process.env.SWARM_CLAUDE_BIN = FAKE;
+  const events = [];
+  const r = await runAgent({ name: 'slow', prompt: 'SLEEP please', timeoutMs: 500, maxRetries: 1, emit: e => events.push(e) });
+  assert.equal(r.attempts, 2);                         // initial + 1 retry
+  assert.ok(events.some(e => e.type === 'agent_retry' && e.reason === 'timeout'));
+  assert.equal(r.structured, false);                   // never got a contract
+  assert.equal(r.status, 'error');
+});
