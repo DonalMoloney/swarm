@@ -257,10 +257,41 @@ async function run(blueprint, task, opts = {}) {
   return { status, totalTokens: totals.tokens, totalCostUsd: totals.costUsd };
 }
 
+// CI-mode log formatters (GitHub Actions annotation syntax).
+// Exported for testing; also used by the CLI entry point when --ci is passed.
+function formatCiEvent(e) {
+  const type = e.type;
+  if (type === 'agent_error') {
+    const msg = e.message || e.status || 'agent failed';
+    return `::error title=Agent ${e.agent}::${msg}`;
+  }
+  if (type === 'budget_exceeded') {
+    return `::warning title=Budget exceeded::${e.metric} ${e.value} > ${e.limit}`;
+  }
+  if (type === 'swarm_done') {
+    if (e.status === 'done') {
+      const tokens = e.total_tokens != null ? e.total_tokens : '?';
+      const cost = typeof e.total_cost_usd === 'number' ? `$${e.total_cost_usd.toFixed(4)}` : '$?';
+      return `::notice title=Swarm complete::${tokens} tokens, ${cost}`;
+    }
+    return `::warning title=Swarm ended::status=${e.status}`;
+  }
+  if (type === 'agent_start') {
+    return `::group::Agent ${e.agent}`;
+  }
+  if (type === 'agent_done') {
+    return `::endgroup::`;
+  }
+  // Default: plain log line
+  const tag = e.agent || e.type;
+  return `[${tag}] ${e.message || e.status || e.type}`;
+}
+
 module.exports = {
   buildAgentPrompt, parseCliEnvelope, CONTRACT_SUFFIX,
   shouldRetry, budgetCheck, resolveLimits, DEFAULTS,
   runAgent, runStage, runGraph, run,
+  formatCiEvent,
 };
 
 if (require.main === module) {
@@ -271,23 +302,91 @@ if (require.main === module) {
 
   const [, , bpPath, task, ...rest] = process.argv;
   if (!bpPath || !task) {
-    console.error('Usage: node runtime/runner.js <blueprint.yaml> "<task>" [--max-cost N] [--timeout S] [--model NAME]');
+    console.error('Usage: node runtime/runner.js <blueprint.yaml> "<task>" [--max-cost N] [--timeout S] [--model NAME] [--ci] [--notify-slack <url>] [--notify-pr <repo> <pr-number>]');
     process.exit(1);
   }
+
   const opts = {};
+  let ciMode = false;
+  let notifySlack = null;
+  let notifyPrRepo = null;
+  let notifyPrNumber = null;
+
   for (let i = 0; i < rest.length; i++) {
     if (rest[i] === '--max-cost') opts.maxCost = rest[++i];
     else if (rest[i] === '--timeout') opts.timeout = rest[++i];
     else if (rest[i] === '--model') opts.model = rest[++i];
+    else if (rest[i] === '--ci') ciMode = true;
+    else if (rest[i] === '--notify-slack') notifySlack = rest[++i];
+    else if (rest[i] === '--notify-pr') { notifyPrRepo = rest[++i]; notifyPrNumber = rest[++i]; }
   }
 
+  // Also pick up notify targets from environment variables (set by GitHub Actions).
+  if (!notifySlack && process.env.SLACK_WEBHOOK_URL) notifySlack = process.env.SLACK_WEBHOOK_URL;
+  if (!notifyPrRepo && process.env.SWARM_NOTIFY_REPO) notifyPrRepo = process.env.SWARM_NOTIFY_REPO;
+  if (!notifyPrNumber && process.env.SWARM_NOTIFY_PR) notifyPrNumber = process.env.SWARM_NOTIFY_PR;
+
   const { appendEvent } = require('./events');
-  opts.emit = (e) => { appendEvent(e); const tag = e.agent || e.type; console.log(`[${tag}] ${e.message || e.status || e.type}`); };
+  opts.emit = (e) => {
+    appendEvent(e);
+    if (ciMode) {
+      const line = formatCiEvent(e);
+      if (line) process.stdout.write(line + '\n');
+    } else {
+      const tag = e.agent || e.type;
+      console.log(`[${tag}] ${e.message || e.status || e.type}`);
+    }
+  };
 
   let bp = yaml.parse(fs.readFileSync(path.resolve(bpPath), 'utf8'));
   bp = resolveExtends(bp, (name) => yaml.parse(fs.readFileSync(path.resolve(path.dirname(bpPath), '..', `${name}.yaml`), 'utf8')));
 
+  const blueprintName = bp.name || path.basename(bpPath, '.yaml');
+
   run(bp, task, opts)
-    .then((s) => { console.log(`\n✓ ${s.status} — ${s.totalTokens} tokens, $${s.totalCostUsd.toFixed(4)}`); process.exit(s.status === 'done' ? 0 : 1); })
+    .then(async (s) => {
+      if (ciMode) {
+        const cost = `$${s.totalCostUsd.toFixed(4)}`;
+        console.log(`::notice title=Run summary::${s.status} — ${s.totalTokens} tokens, ${cost}`);
+        // Write to GitHub Actions step summary if available
+        if (process.env.GITHUB_STEP_SUMMARY) {
+          const { formatGithubComment } = require('./notify');
+          const summary = formatGithubComment({
+            blueprint: blueprintName,
+            task,
+            status: s.status,
+            totalTokens: s.totalTokens,
+            totalCostUsd: s.totalCostUsd,
+            runUrl: process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
+              ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
+              : undefined,
+          });
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary + '\n', 'utf8');
+        }
+      } else {
+        console.log(`\n✓ ${s.status} — ${s.totalTokens} tokens, $${s.totalCostUsd.toFixed(4)}`);
+      }
+
+      // Send notifications if configured
+      const notifyOpts = {};
+      if (process.env.GITHUB_TOKEN) notifyOpts.githubToken = process.env.GITHUB_TOKEN;
+      if (notifyPrRepo) notifyOpts.githubRepo = notifyPrRepo;
+      if (notifyPrNumber) notifyOpts.prNumber = notifyPrNumber;
+      if (notifySlack) notifyOpts.slackWebhook = notifySlack;
+
+      const hasAnyNotify = !!(notifySlack || (notifyPrRepo && notifyPrNumber));
+      if (hasAnyNotify) {
+        const { notify } = require('./notify');
+        await notify({
+          blueprint: blueprintName,
+          task,
+          status: s.status,
+          totalTokens: s.totalTokens,
+          totalCostUsd: s.totalCostUsd,
+        }, notifyOpts);
+      }
+
+      process.exit(s.status === 'done' ? 0 : 1);
+    })
     .catch((err) => { console.error(err.message); process.exit(1); });
 }

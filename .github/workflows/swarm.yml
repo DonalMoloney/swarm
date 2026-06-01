@@ -1,0 +1,196 @@
+name: Run Swarm
+
+on:
+  # Manual trigger from the GitHub Actions UI
+  workflow_dispatch:
+    inputs:
+      blueprint:
+        description: 'Blueprint name (e.g. "research" → swarms/research.yaml)'
+        required: true
+        type: string
+      task:
+        description: 'Task description passed to the swarm'
+        required: true
+        type: string
+      model:
+        description: 'Claude model to use'
+        required: false
+        type: string
+        default: 'claude-sonnet-4-5'
+      max_cost:
+        description: 'Maximum cost cap in USD (e.g. "2.00"). Leave empty for no cap.'
+        required: false
+        type: string
+        default: ''
+      timeout:
+        description: 'Per-agent timeout in seconds (e.g. "300"). Leave empty for default.'
+        required: false
+        type: string
+        default: ''
+      notify_pr:
+        description: 'PR number to post a completion comment on (leave empty to skip)'
+        required: false
+        type: string
+        default: ''
+
+  # Reusable from other workflows via `uses: ./.github/workflows/swarm.yml`
+  workflow_call:
+    inputs:
+      blueprint:
+        description: 'Blueprint name (e.g. "research" → swarms/research.yaml)'
+        required: true
+        type: string
+      task:
+        description: 'Task description passed to the swarm'
+        required: true
+        type: string
+      model:
+        description: 'Claude model to use'
+        required: false
+        type: string
+        default: 'claude-sonnet-4-5'
+      max_cost:
+        description: 'Maximum cost cap in USD. Leave empty for no cap.'
+        required: false
+        type: string
+        default: ''
+      timeout:
+        description: 'Per-agent timeout in seconds. Leave empty for default.'
+        required: false
+        type: string
+        default: ''
+      notify_pr:
+        description: 'PR number to post a completion comment on (leave empty to skip)'
+        required: false
+        type: string
+        default: ''
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: true
+      SLACK_WEBHOOK_URL:
+        required: false
+
+jobs:
+  swarm:
+    name: 'Swarm: ${{ inputs.blueprint }}'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    permissions:
+      # Needed to post PR comments via GITHUB_TOKEN
+      pull-requests: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Security: all inputs are bound to env vars here and never interpolated
+      # directly into shell commands, preventing command injection.
+      - name: Validate inputs
+        env:
+          BLUEPRINT: ${{ inputs.blueprint }}
+          NOTIFY_PR: ${{ inputs.notify_pr }}
+          MAX_COST: ${{ inputs.max_cost }}
+          TIMEOUT: ${{ inputs.timeout }}
+        run: |
+          # blueprint must be a safe filename: letters, digits, hyphens, underscores only.
+          if ! echo "$BLUEPRINT" | grep -qE '^[a-zA-Z0-9_-]+$'; then
+            echo "::error title=Invalid blueprint name::Blueprint name must contain only letters, digits, hyphens, and underscores. Got: $BLUEPRINT"
+            exit 1
+          fi
+
+          # Blueprint file must exist under swarms/
+          BLUEPRINT_FILE="swarms/${BLUEPRINT}.yaml"
+          if [ ! -f "$BLUEPRINT_FILE" ]; then
+            echo "::error title=Blueprint not found::$BLUEPRINT_FILE does not exist in this repository"
+            exit 1
+          fi
+          echo "Blueprint file OK: $BLUEPRINT_FILE"
+
+          # notify_pr, if set, must be a positive integer (PR number)
+          if [ -n "$NOTIFY_PR" ] && ! echo "$NOTIFY_PR" | grep -qE '^[0-9]+$'; then
+            echo "::error title=Invalid PR number::notify_pr must be a positive integer. Got: $NOTIFY_PR"
+            exit 1
+          fi
+
+          # max_cost, if set, must be a non-negative decimal number
+          if [ -n "$MAX_COST" ] && ! echo "$MAX_COST" | grep -qE '^[0-9]+(\.[0-9]+)?$'; then
+            echo "::error title=Invalid max_cost::max_cost must be a non-negative number. Got: $MAX_COST"
+            exit 1
+          fi
+
+          # timeout, if set, must be a positive integer (seconds)
+          if [ -n "$TIMEOUT" ] && ! echo "$TIMEOUT" | grep -qE '^[0-9]+$'; then
+            echo "::error title=Invalid timeout::timeout must be a positive integer (seconds). Got: $TIMEOUT"
+            exit 1
+          fi
+
+      # Build optional CLI flags from validated env vars (no user input in the shell
+      # command text — everything flows through environment variables).
+      - name: Build runner flags
+        id: flags
+        env:
+          MODEL: ${{ inputs.model }}
+          MAX_COST: ${{ inputs.max_cost }}
+          TIMEOUT: ${{ inputs.timeout }}
+        run: |
+          FLAGS="--ci"
+          if [ -n "$MODEL" ]; then
+            # model names are safe (letters/digits/hyphens) but we still use the
+            # env var rather than interpolating ${{ inputs.model }} inline.
+            FLAGS="$FLAGS --model $MODEL"
+          fi
+          if [ -n "$MAX_COST" ]; then
+            FLAGS="$FLAGS --max-cost $MAX_COST"
+          fi
+          if [ -n "$TIMEOUT" ]; then
+            FLAGS="$FLAGS --timeout $TIMEOUT"
+          fi
+          echo "flags=$FLAGS" >> "$GITHUB_OUTPUT"
+
+      # The runner is invoked via a Node wrapper script so that TASK and
+      # BLUEPRINT_FILE are passed as process arguments rather than shell-expanded
+      # strings, fully sidestepping shell injection regardless of task content.
+      - name: Run swarm
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          # Pass PR info so runner.js / notify.js can post a completion comment
+          SWARM_NOTIFY_REPO: ${{ github.repository }}
+          SWARM_NOTIFY_PR: ${{ inputs.notify_pr }}
+          # GITHUB_TOKEN, GITHUB_STEP_SUMMARY, GITHUB_SERVER_URL, GITHUB_RUN_ID
+          # are automatically injected by the GitHub Actions runner.
+          # Expose BLUEPRINT and TASK so the launch script can read them safely.
+          SWARM_BLUEPRINT: ${{ inputs.blueprint }}
+          SWARM_TASK: ${{ inputs.task }}
+          SWARM_FLAGS: ${{ steps.flags.outputs.flags }}
+        # Use a Node.js one-liner as the entry point so that SWARM_TASK (which may
+        # contain quotes, semicolons, or other shell metacharacters) is passed
+        # directly as a JS string — never touched by the shell parser.
+        run: |
+          node -e "
+            const { spawnSync } = require('child_process');
+            const bp   = 'swarms/' + process.env.SWARM_BLUEPRINT + '.yaml';
+            const task = process.env.SWARM_TASK;
+            const flags = (process.env.SWARM_FLAGS || '').split(/\s+/).filter(Boolean);
+            const args = ['runtime/runner.js', bp, task, ...flags];
+            const result = spawnSync(process.execPath, args, { stdio: 'inherit' });
+            process.exit(result.status ?? 1);
+          "
+
+      - name: Upload swarm output artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swarm-output-${{ inputs.blueprint }}-${{ github.run_id }}
+          path: |
+            swarms/output/
+            .swarm/events.jsonl
+          if-no-files-found: ignore
+          retention-days: 30

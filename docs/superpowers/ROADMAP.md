@@ -14,6 +14,7 @@ grounded in what already exists in the codebase versus what is genuinely missing
 |-------|--------|---------|
 | **Phase 1 — Dashboard & Authoring UI** | ✅ Done | Live dashboard (topology, agents, log, history tabs), wizard, preview. Plus the polish/zoom/larger-node pass. |
 | **Phase 2 — Hierarchical Topology & Conditional Branching** | 🎨 Designed | Groups, conditions, branching. MVP (2.1) + deferred (2.2). See `specs/2026-05-31-swarm-phase2-extend-capabilities-design.md`. |
+| **Phase 5 — Headless / CI Runner** | ✅ Done | GitHub Actions workflow, zero-dep notify.js (GitHub PR comment + Slack), `--ci` annotation mode, `--notify-slack` / `--notify-pr` CLI flags. |
 
 **The gap:** P1 and P2 are about *describing and visualizing* swarms. Almost
 nothing yet makes the **execution** itself reliable or durable. That is the
@@ -65,17 +66,35 @@ The Phase 2 spec explicitly punts these; pick them up once 2.1 lands.
 
 ---
 
-## Phase 5 — Headless / CI Runner *(the named gap)*
+## Phase 5 — Headless / CI Runner *(shipped)*
 
 **Goal:** swarms run without a human at the REPL.
 
-- `runtime/runner.js` that drives agents via the **Agent SDK**, not an
-  interactive Claude Code session.
-- **GitHub Action + cron triggers**; proper exit codes; CI-friendly logs.
-- **Notifications** (GitHub PR comment / Slack) on completion or failure.
+**What shipped:**
 
-> The leap from "I run it while watching" to "it runs *for* me." Largest
-> architectural bet on the roadmap.
+- **`runtime/notify.js`** — zero-dependency (Node built-ins only) notification
+  module. Posts a markdown summary to a GitHub PR comment and/or a Slack
+  webhook after each run. Pure formatter functions (`formatGithubComment`,
+  `formatSlackPayload`) are exported for testing without HTTP calls.
+- **`.github/workflows/swarm.yml`** — reusable GitHub Actions workflow
+  (`workflow_dispatch` + `workflow_call`). Accepts `blueprint`, `task`,
+  `model`, `max_cost`, `timeout`, `notify_pr` inputs. Security-hardened:
+  all user inputs are bound to `env:` vars and validated with an allowlist
+  regex before use; `SWARM_TASK` is passed to Node via `spawnSync` args
+  (never shell-interpolated) to prevent command injection. Uploads
+  `swarms/output/` and `.swarm/events.jsonl` as run artifacts.
+- **`--ci` flag** in `runtime/runner.js` — switches log output to GitHub
+  Actions annotation format: `::error::`, `::warning::`, `::notice::`,
+  `::group::`/`::endgroup::`. Also writes a markdown summary to
+  `$GITHUB_STEP_SUMMARY` when running inside Actions.
+- **`--notify-slack <url>`** and **`--notify-pr <repo> <pr-number>`** CLI
+  flags wire into `notify.js` after `run()` completes. Also reads
+  `SLACK_WEBHOOK_URL`, `SWARM_NOTIFY_REPO`, `SWARM_NOTIFY_PR` from env.
+- **`runtime/notify.test.js`** — 26 tests covering no-op behaviour, GitHub
+  comment formatting (emoji, table structure, runUrl), and Slack payload
+  shape (color coding, fields, JSON serializability). No HTTP calls made.
+
+> The leap from "I run it while watching" to "it runs *for* me."
 
 ---
 
