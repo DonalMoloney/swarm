@@ -375,3 +375,7 @@ Blueprints can group agents and branch on conditions.
 
 Note: condition *definitions* are validated and compiled into the execution
 graph now. Live *evaluation* of conditions during a run is a later phase.
+
+The dry-run preview visualizes Phase-2 blueprints: groups render as boxes,
+conditions as diamonds, and branches as green (true) / red (false) edges.
+The wizard builder can author `groups` and `conditions` programmatically.

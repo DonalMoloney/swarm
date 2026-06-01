@@ -55,6 +55,7 @@ runtime/events.js        ← appends JSON to .swarm/events.jsonl
 runtime/dashboard.js     ← HTTP+SSE server (port 7700, auto-finds free port)
        ↓ rendered in
 ui/index.html + ui/graph.js  ← topology SVG + live log dashboard
+ui/preview.html + ui/graph-layout.js  ← dry-run preview incl. Phase-2 group/condition topology
 ```
 
 ### Flow Syntax
@@ -86,6 +87,7 @@ Types: `swarm_start`, `agent_start`, `agent_log`, `agent_done`, `agent_error`, `
 
 - `GET /` → `ui/index.html`
 - `GET /graph.js` → `ui/graph.js`
+- `GET /graph-layout.js` → `ui/graph-layout.js` (pure execution-graph layout)
 - `GET /state` → all events as JSON array
 - `GET /events` → SSE stream of live events
 - `POST /event` → submit an event programmatically
