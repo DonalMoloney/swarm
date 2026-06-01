@@ -60,8 +60,10 @@ function renderGraph(stages, agentStates, svgEl) {
         line.setAttribute('x2', p2.x - 24);
         line.setAttribute('y2', p2.y);
         line.setAttribute('stroke', isActive ? '#58a6ff' : '#30363d');
-        line.setAttribute('stroke-width', '1.5');
+        line.setAttribute('stroke-width', isActive ? '2' : '1.5');
         line.setAttribute('marker-end', isActive ? 'url(#arrow-active)' : 'url(#arrow)');
+        // Marching-dash animation while the upstream agent is live
+        if (state === 'running') line.setAttribute('class', 'edge-live');
         svgEl.appendChild(line);
       });
     });
@@ -87,6 +89,12 @@ function renderGraph(stages, agentStates, svgEl) {
     circle.setAttribute('fill', c.fill);
     circle.setAttribute('stroke', c.stroke);
     circle.setAttribute('stroke-width', state === 'running' ? '2' : '1.5');
+
+    // Glow active nodes in their state color (drop-shadow keyed to the stroke)
+    if (state !== 'pending') {
+      const intensity = state === 'running' ? 8 : 5;
+      circle.style.filter = `drop-shadow(0 0 ${intensity}px ${c.stroke})`;
+    }
 
     if (state === 'running') {
       circle.setAttribute('class', 'pulse');

@@ -8,7 +8,7 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
-    background: #0d1117;
+    background: radial-gradient(circle at 50% -20%, #11203f 0%, #0a0d14 55%) fixed;
     color: #e6edf3;
     font-family: 'SF Mono', 'Cascadia Code', monospace;
     font-size: 12px;
@@ -23,12 +23,13 @@
     align-items: center;
     justify-content: space-between;
     padding: 10px 16px;
-    border-bottom: 1px solid #21262d;
-    background: #161b22;
+    border-bottom: 1px solid #1f6feb22;
+    background: #0f1623cc;
+    backdrop-filter: blur(6px);
     flex-shrink: 0;
   }
 
-  header h1 { font-size: 13px; color: #58a6ff; }
+  header h1 { font-size: 13px; color: #7cc0ff; text-shadow: 0 0 10px #58a6ff66; }
   header .meta { color: #8b949e; font-size: 11px; }
 
   #status-badge {
@@ -37,17 +38,19 @@
     font-size: 11px;
     background: #21262d;
     color: #8b949e;
+    transition: background 0.2s, box-shadow 0.2s, color 0.2s;
   }
-  #status-badge.running { background: #1f6feb33; color: #58a6ff; }
-  #status-badge.done    { background: #23863633; color: #3fb950; }
-  #status-badge.error   { background: #f8514922; color: #f85149; }
+  #status-badge.running { background: #1f6feb33; color: #7cc0ff; box-shadow: 0 0 12px #1f6feb66; }
+  #status-badge.done    { background: #23863633; color: #56d364; box-shadow: 0 0 12px #23863655; }
+  #status-badge.error   { background: #f8514922; color: #f85149; box-shadow: 0 0 12px #f8514944; }
+  #status-badge.running::before { content: '● '; animation: pulse 1.2s ease-in-out infinite; }
 
   /* Top: topology graph */
   #graph-panel {
     flex: 0 0 160px;
-    border-bottom: 1px solid #21262d;
+    border-bottom: 1px solid #1f6feb22;
     padding: 8px 12px;
-    background: #0d1117;
+    background: transparent;
   }
 
   #graph-panel h2 { font-size: 10px; color: #484f58; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
@@ -64,6 +67,13 @@
   }
   .pulse { animation: pulse 1.2s ease-in-out infinite; }
 
+  /* Marching dashes on live topology edges */
+  @keyframes flow { to { stroke-dashoffset: -20; } }
+  .edge-live {
+    stroke-dasharray: 6 4;
+    animation: flow 0.6s linear infinite;
+  }
+
   /* Bottom: task tree + logs side by side */
   #bottom {
     display: grid;
@@ -73,7 +83,7 @@
   }
 
   #task-panel {
-    border-right: 1px solid #21262d;
+    border-right: 1px solid #1f6feb22;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -108,9 +118,9 @@
 
   .task-icon { flex-shrink: 0; width: 14px; text-align: center; margin-top: 1px; }
   .task-icon.pending  { color: #484f58; }
-  .task-icon.running  { color: #58a6ff; }
-  .task-icon.done     { color: #3fb950; }
-  .task-icon.error    { color: #f85149; }
+  .task-icon.running  { color: #58a6ff; text-shadow: 0 0 8px #58a6ff; }
+  .task-icon.done     { color: #3fb950; text-shadow: 0 0 8px #3fb95099; }
+  .task-icon.error    { color: #f85149; text-shadow: 0 0 8px #f8514999; }
 
   .task-body { flex: 1; min-width: 0; }
   .task-name { color: #e6edf3; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -131,7 +141,7 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background: #0d1117;
+    background: transparent;
   }
 
   #log-stream {
@@ -171,8 +181,9 @@
     font-size: 11px;
   }
 
-  .tab { background:#21262d; border:1px solid #30363d; color:#8b949e; padding:3px 10px; border-radius:4px; cursor:pointer; font-family:inherit; font-size:11px; }
-  .tab.active { background:#1f6feb33; color:#58a6ff; border-color:#58a6ff44; }
+  .tab { background:#1c2433; border:1px solid #2a3346; color:#8b949e; padding:3px 10px; border-radius:4px; cursor:pointer; font-family:inherit; font-size:11px; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+  .tab:hover { color:#9ecbff; border-color:#58a6ff44; }
+  .tab.active { background:linear-gradient(#1f6feb44,#1f6feb22); color:#9ecbff; border-color:#58a6ff66; }
   #history-panel { display:none; flex:1; overflow:auto; padding:12px 16px; }
   #history-panel.visible { display:block; }
   #history-table { width:100%; border-collapse:collapse; }
