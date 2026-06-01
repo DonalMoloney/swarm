@@ -21,12 +21,9 @@ grounded in what already exists in the codebase versus what is genuinely missing
 | **Phase 6 — Authoring & Blueprint Library** | ✅ Done | `library.js`, versioning, templates, `swarm init` scaffolder, mature wizard. |
 | **Phase 7 — Observability & Cost** | ✅ Done | Token/cost accounting per run, metrics view in dashboard, budget alerts. |
 | **Phase 8 — Distribution & Onboarding** | ✅ Done | `plugin.json` manifest, enriched README, three example blueprints (`security-audit`, `content-pipeline`, `incident-response`), `docs/swarm-authoring.md`. |
-| **Phase 9 — Safety & Governance** | 🔲 Not started | Sandboxing, approval gates, audit log, permissions. |
+| **Phase 9 — Safety & Governance** | ✅ Done | Persistent audit log (`swarms/audit.jsonl`), `permissions` block + `--allowedTools` passthrough, approval gates (`requires_approval: true`), CI auto-deny, `docs/testing.md`. |
 
-**Where things stand:** The execution stack (Phases 1–4, 6–7) is complete. The
-project runs swarms reliably with structured output, durable history, cost tracking,
-and a library of blueprints. The remaining work is about **running unattended** (5),
-**distributing to others** (8), and **safety for real actions** (9).
+**All phases complete.** The full roadmap — from demo to production-ready — has shipped. Every phase from dashboard and authoring through execution, persistence, CI, distribution, and safety/governance is on `main`.
 
 ---
 
@@ -108,12 +105,17 @@ by others.
 
 ---
 
-## Phase 9 — Safety & Governance *(parallel track — pull earlier if shared)*
+## Phase 9 — Safety & Governance *(shipped)*
 
 **Goal:** trust agents with real actions.
 
-- **Sandboxing** of file/network actions, **approval gates** (ties into Phase 2.2
-  user-choice), audit log, and permissions.
+**Shipped:**
+
+- **Persistent audit log** (`swarms/audit.jsonl`) — append-only JSONL, survives across runs. `runtime/audit.js` exposes `appendAuditEntry` / `readAuditLog` with optional `limit`, `blueprint`, and `since` filters. Wired into `runtime/runner.js` after each run (non-fatal).
+- **Blueprint-level `permissions` block** — optional `allowed_tools`, `denied_tools`, `allowed_paths` fields parsed from YAML. Per-agent `allowed_tools` override takes precedence. When set, the runner appends `--allowedTools <tool1>,<tool2>,...` to the `claude` CLI invocation.
+- **Approval gates** — set `requires_approval: true` on any agent. The runner pauses before spawning that agent and prompts the user interactively. Typing `y`/`yes` proceeds; anything else emits `agent_error` with `reason: approval_denied` and continues remaining agents. In `--ci` mode, gates auto-deny with a `::warning::` log line.
+- **`docs/testing.md`** — test suite guide covering how to run tests, what each file covers, the `SWARM_CLAUDE_BIN` stub pattern, writing new tests, and manual blueprint testing.
+- **`runtime/audit.test.js`** — 7 tests covering append, read order, limit, blueprint filter, since filter, auto-directory creation, and missing-file guard.
 
 ---
 
@@ -128,6 +130,8 @@ Phases 2.2 ✅ / 6 ✅ / 7 ✅ are all shipped. The entire critical path is comp
 
 **Only Phase 9 remains** (safety/governance — sandboxing, approval gates, audit log).
 Pull it forward before sharing Swarm with others or running agents with real write access.
+
+Phase 9 (Safety & Governance) is now complete. All phases are in progress or done.
 
 ---
 

@@ -2,6 +2,7 @@
 swarms/output/*.md
 swarms/output/*.json
 swarms/output/*.jsonl
+swarms/audit.jsonl
 .superpowers/
 node_modules/
 mock-dashboard.html

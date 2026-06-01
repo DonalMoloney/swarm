@@ -66,10 +66,30 @@ const { spawn } = require('child_process');
 
 function claudeBin() { return process.env.SWARM_CLAUDE_BIN || 'claude'; }
 
-function runAgentOnce(prompt, { timeoutMs, model }) {
+/**
+ * Resolve allowed tools for a specific agent, merging blueprint-level permissions
+ * with per-agent overrides. Returns null if no restriction is set.
+ */
+function resolveAllowedTools(agentDef, blueprint) {
+  // Per-agent override takes precedence
+  if (agentDef && Array.isArray(agentDef.allowed_tools) && agentDef.allowed_tools.length > 0) {
+    return agentDef.allowed_tools;
+  }
+  // Blueprint-level permissions
+  const perms = blueprint && blueprint.permissions;
+  if (perms && Array.isArray(perms.allowed_tools) && perms.allowed_tools.length > 0) {
+    return perms.allowed_tools;
+  }
+  return null;
+}
+
+function runAgentOnce(prompt, { timeoutMs, model, allowedTools }) {
   return new Promise((resolve) => {
     const args = ['-p', prompt, '--output-format', 'json'];
     if (model) args.push('--model', model);
+    if (allowedTools && allowedTools.length > 0) {
+      args.push('--allowedTools', allowedTools.join(','));
+    }
     const child = spawn(claudeBin(), args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '', stderr = '', timedOut = false;
     const timer = setTimeout(() => {
@@ -84,13 +104,13 @@ function runAgentOnce(prompt, { timeoutMs, model }) {
   });
 }
 
-async function runAgent({ name, prompt, timeoutMs, maxRetries, model, emit }) {
+async function runAgent({ name, prompt, timeoutMs, maxRetries, model, allowedTools, emit }) {
   const noop = () => {};
   const log = emit || noop;
   let attempt = 0, text = '', tokens = 0, costUsd = 0, structured = false, contract = null, timedOut = false, exitCode = 0;
   while (true) {
     attempt++;
-    const res = await runAgentOnce(prompt, { timeoutMs, model });
+    const res = await runAgentOnce(prompt, { timeoutMs, model, allowedTools });
     timedOut = res.timedOut; exitCode = res.exitCode;
     const env = parseCliEnvelope(res.stdout);
     if (env) { text = env.text; tokens += env.tokens; costUsd += env.costUsd; }
@@ -108,15 +128,60 @@ async function runAgent({ name, prompt, timeoutMs, maxRetries, model, emit }) {
 const { compile } = require('./compiler');
 const { evaluateCondition } = require('./evaluator');
 
+/**
+ * Prompt the user for approval before running a sensitive agent.
+ * Returns true if approved, false if denied.
+ * If ctx.ci is true, auto-denies with a CI warning.
+ */
+function requestApproval({ name, blueprint, task, prompt }, ctx) {
+  if (ctx.ci) {
+    process.stderr.write(`::warning::Approval required but running in CI — agent skipped: ${name}\n`);
+    return false;
+  }
+  const preview = (prompt || '').slice(0, 200);
+  process.stdout.write(
+    `\n[swarm] Agent "${name}" requires approval.\n` +
+    `  Blueprint: ${blueprint}\n` +
+    `  Task: ${task}\n` +
+    `  Prompt preview: ${preview}\n` +
+    `Proceed? [y/N]: `
+  );
+  let answer = '';
+  try {
+    // Read one line synchronously from stdin
+    const fs = require('fs');
+    // Read up to 256 bytes — enough for "yes\n"
+    const buf = Buffer.alloc(256);
+    const n = fs.readSync(0, buf, 0, buf.length, null);
+    answer = buf.slice(0, n).toString('utf8').trim();
+  } catch {
+    answer = '';
+  }
+  return answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes';
+}
+
 async function runStage(stage, ctx) {
-  const results = await Promise.all(stage.agents.map((name) => {
+  const results = await Promise.all(stage.agents.map(async (name) => {
     const a = ctx.blueprint.agents[name] || {};
     const role = a.prompt || a.role || '';
     const prompt = buildAgentPrompt(role, ctx.task, ctx.contextBlock, ctx.priorOutput);
     const timeoutMs = num(a.timeout, ctx.limits.agentTimeout) * 1000;
     const maxRetries = num(a.retries, ctx.limits.agentRetries);
+    const allowedTools = resolveAllowedTools(a, ctx.blueprint);
+
+    // Approval gate
+    if (a.requires_approval) {
+      ctx.emit({ type: 'agent_approval_requested', agent: name, blueprint: ctx.blueprint.name, task: ctx.task });
+      const approved = requestApproval({ name, blueprint: ctx.blueprint.name, task: ctx.task, prompt }, ctx);
+      if (!approved) {
+        const r = { name, status: 'error', summary: 'approval_denied', contract: null, text: '', tokens: 0, costUsd: 0, attempts: 0, structured: false };
+        ctx.emit({ type: 'agent_error', agent: name, status: 'error', reason: 'approval_denied', message: 'Agent skipped: approval denied' });
+        return r;
+      }
+    }
+
     ctx.emit({ type: 'agent_start', agent: name, status: 'running', message: 'Starting…' });
-    return runAgent({ name, prompt, timeoutMs, maxRetries, model: ctx.model, emit: ctx.emit })
+    return runAgent({ name, prompt, timeoutMs, maxRetries, model: ctx.model, allowedTools, emit: ctx.emit })
       .then((r) => {
         ctx.emit({
           type: r.status === 'error' ? 'agent_error' : 'agent_done',
@@ -203,12 +268,13 @@ async function run(blueprint, task, opts = {}) {
   const emit = opts.emit || (() => {});
   const plan = compile(blueprint);
   const limits = resolveLimits(blueprint, opts);
+  const ci = !!opts.ci;
 
   // Collect every emitted event so the run can be archived for replay
   const collected = [];
   const record = (e) => { collected.push(e); emit(e); };
 
-  const baseCtx = { task, contextBlock: opts.contextBlock || '', limits, model: opts.model, emit: record };
+  const baseCtx = { task, contextBlock: opts.contextBlock || '', limits, model: opts.model, ci, emit: record };
 
   record({
     type: 'swarm_start', agent: blueprint.name, status: 'running', message: task,
@@ -239,10 +305,10 @@ async function run(blueprint, task, opts = {}) {
   record({ type: 'swarm_done', status, total_tokens: totals.tokens, total_cost_usd: totals.costUsd });
 
   // Persist the run durably: events archive + enriched index record
+  const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+  const id = `${blueprint.name}-${stamp}`;
   try {
     const fs = require('fs');
-    const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
-    const id = `${blueprint.name}-${stamp}`;
     fs.mkdirSync('swarms/output', { recursive: true });
     fs.writeFileSync(`swarms/output/${id}.md`, priorOutput, 'utf8');
     require('./archive').archiveRun({
@@ -251,6 +317,20 @@ async function run(blueprint, task, opts = {}) {
       totalTokens: totals.tokens, totalCostUsd: totals.costUsd,
       agentCount: Object.keys(blueprint.agents).length,
       outputFile: `${id}.md`, ts: Date.now(),
+    });
+  } catch (e) { /* non-fatal */ }
+
+  // Append to persistent audit log (non-fatal)
+  try {
+    require('./audit').appendAuditEntry({
+      id,
+      blueprint: blueprint.name,
+      task,
+      status,
+      agentCount: Object.keys(blueprint.agents).length,
+      totalTokens: totals.tokens,
+      totalCostUsd: totals.costUsd,
+      ts: Date.now(),
     });
   } catch (e) { /* non-fatal */ }
 
@@ -290,6 +370,7 @@ function formatCiEvent(e) {
 module.exports = {
   buildAgentPrompt, parseCliEnvelope, CONTRACT_SUFFIX,
   shouldRetry, budgetCheck, resolveLimits, DEFAULTS,
+  resolveAllowedTools,
   runAgent, runStage, runGraph, run,
   formatCiEvent,
 };
@@ -316,7 +397,7 @@ if (require.main === module) {
     if (rest[i] === '--max-cost') opts.maxCost = rest[++i];
     else if (rest[i] === '--timeout') opts.timeout = rest[++i];
     else if (rest[i] === '--model') opts.model = rest[++i];
-    else if (rest[i] === '--ci') ciMode = true;
+    else if (rest[i] === '--ci') { ciMode = true; opts.ci = true; }
     else if (rest[i] === '--notify-slack') notifySlack = rest[++i];
     else if (rest[i] === '--notify-pr') { notifyPrRepo = rest[++i]; notifyPrNumber = rest[++i]; }
   }
