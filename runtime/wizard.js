@@ -13,7 +13,9 @@ class WizardSession {
       description: null,
       agents: {},
       context: null,
-      flow: null
+      flow: null,
+      groups: {},
+      conditions: {}
     };
   }
 
@@ -64,6 +66,28 @@ class WizardSession {
   }
 
   /**
+   * Add a group of agents.
+   * @param {string} name - Group name
+   * @param {string[]} agents - Agent names in the group
+   * @returns {WizardSession} this for chaining
+   */
+  addGroup(name, agents) {
+    this.state.groups[name] = { agents: Array.isArray(agents) ? agents : [agents] };
+    return this;
+  }
+
+  /**
+   * Add a condition.
+   * @param {string} name - Condition name
+   * @param {object} def - Condition definition (type + type-specific fields)
+   * @returns {WizardSession} this for chaining
+   */
+  addCondition(name, def) {
+    this.state.conditions[name] = { ...def };
+    return this;
+  }
+
+  /**
    * Set context providers for an agent
    * @param {string} agent - Agent name
    * @param {string[]} providers - Array of provider names (e.g. ['github', 'slack'])
@@ -108,6 +132,32 @@ class WizardSession {
     // flow field (always quoted)
     if (this.state.flow) {
       lines.push(`flow: "${this.state.flow.replace(/"/g, '\\"')}"`);
+    }
+
+    // groups section (Phase 2)
+    const groupNames = Object.keys(this.state.groups);
+    if (groupNames.length > 0) {
+      lines.push('');
+      lines.push('groups:');
+      for (const g of groupNames) {
+        lines.push(`  ${g}:`);
+        lines.push(`    agents: [${this.state.groups[g].agents.join(', ')}]`);
+      }
+    }
+
+    // conditions section (Phase 2)
+    const condNames = Object.keys(this.state.conditions);
+    if (condNames.length > 0) {
+      lines.push('');
+      lines.push('conditions:');
+      for (const c of condNames) {
+        const def = this.state.conditions[c];
+        lines.push(`  ${c}:`);
+        for (const [k, v] of Object.entries(def)) {
+          const needsQuote = typeof v === 'string' && /[>:<=]/.test(v);
+          lines.push(`    ${k}: ${needsQuote ? `"${v}"` : v}`);
+        }
+      }
     }
 
     // agents section
