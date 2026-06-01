@@ -115,14 +115,53 @@ test('run executes a linear+parallel blueprint and totals usage', async () => {
   }
 });
 
-test('run rejects Phase-2 (execution_graph) blueprints', async () => {
-  const blueprint = {
-    name: 'cond', flow: 'research → if c1: synth else: fb',
+function conditionalBlueprint(searcherMarker) {
+  return {
+    name: 'cond',
+    flow: 'research → if high_confidence: synth else: fb',
     groups: { research: { agents: ['s'] }, synth: { agents: ['y'] }, fb: { agents: ['z'] } },
-    conditions: { c1: { type: 'validation', criteria: 'no-errors' } },
-    agents: { s: { prompt: '' }, y: { prompt: '' }, z: { prompt: '' } },
+    conditions: { high_confidence: { type: 'agent_output', source: 's', check: 'confidence', threshold: '> 0.8' } },
+    agents: {
+      s: { prompt: `search ${searcherMarker}` },
+      y: { prompt: 'synthesize' },
+      z: { prompt: 'fallback' },
+    },
   };
-  await assert.rejects(() => run(blueprint, 't', {}), /Phase-2|execution graph|groups\/conditions/i);
+}
+
+async function runConditional(marker) {
+  process.env.SWARM_CLAUDE_BIN = FAKE;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarm-graph-'));
+  const cwd = process.cwd();
+  process.chdir(dir);
+  fs.mkdirSync('swarms/output', { recursive: true });
+  try {
+    const events = [];
+    const summary = await run(conditionalBlueprint(marker), 't', { emit: e => events.push(e) });
+    return { events, summary };
+  } finally {
+    process.chdir(cwd);
+  }
+}
+
+test('run routes a Phase-2 graph to the TRUE branch when the condition holds', async () => {
+  const { events } = await runConditional('HIGHCONF');           // searcher confidence 0.95 > 0.8
+  const decision = events.find(e => e.type === 'condition_evaluated');
+  assert.ok(decision, 'emits a condition_evaluated event');
+  assert.equal(decision.condition, 'high_confidence');
+  assert.equal(decision.result, true);
+  const started = events.filter(e => e.type === 'agent_start').map(e => e.agent);
+  assert.deepEqual(started, ['s', 'y'], 'ran searcher then the synth (true) branch');
+  assert.ok(!started.includes('z'), 'did not run the fallback (false) branch');
+});
+
+test('run routes a Phase-2 graph to the FALSE branch when the condition fails', async () => {
+  const { events } = await runConditional('LOWCONF');            // searcher confidence 0.3 < 0.8
+  const decision = events.find(e => e.type === 'condition_evaluated');
+  assert.equal(decision.result, false);
+  const started = events.filter(e => e.type === 'agent_start').map(e => e.agent);
+  assert.deepEqual(started, ['s', 'z'], 'ran searcher then the fallback (false) branch');
+  assert.ok(!started.includes('y'), 'did not run the synth (true) branch');
 });
 
 test('run aborts when the cost budget is exceeded', async () => {

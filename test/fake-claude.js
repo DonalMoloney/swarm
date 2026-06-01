@@ -22,6 +22,10 @@ if (prompt.includes('SLEEP')) {
   setTimeout(() => emit('late'), 5000);
 } else if (prompt.includes('NOJSON')) {
   emit('just prose, no contract');
+} else if (prompt.includes('HIGHCONF')) {
+  emit('Done.\n```json\n{"status":"success","summary":"ok","confidence":0.95}\n```');
+} else if (prompt.includes('LOWCONF')) {
+  emit('Done.\n```json\n{"status":"success","summary":"ok","confidence":0.3}\n```');
 } else {
   emit('Done.\n```json\n{"status":"success","summary":"ok"}\n```');
 }

@@ -106,6 +106,7 @@ async function runAgent({ name, prompt, timeoutMs, maxRetries, model, emit }) {
 }
 
 const { compile } = require('./compiler');
+const { evaluateCondition } = require('./evaluator');
 
 async function runStage(stage, ctx) {
   const results = await Promise.all(stage.agents.map((name) => {
@@ -128,32 +129,88 @@ async function runStage(stage, ctx) {
   return results;
 }
 
-async function run(blueprint, task, opts = {}) {
-  const emit = opts.emit || (() => {});
-  const plan = compile(blueprint);
-  if (plan.execution_graph) {
-    throw new Error('Runner handles linear/parallel flows only; this blueprint uses Phase-2 groups/conditions — run it via the /swarm LLM flow.');
-  }
-  const limits = resolveLimits(blueprint, opts);
+// Walk a Phase-2 execution graph: run group stages, evaluate conditions against
+// captured agent contracts, and route true/false branches. Branch decisions are
+// emitted as `condition_evaluated` events.
+async function runGraph(graph, blueprint, baseCtx) {
   const totals = { tokens: 0, costUsd: 0 };
+  const resultsByName = {};
   let priorOutput = '';
   let status = 'done';
 
+  const nodes = Object.fromEntries(graph.stages.map(n => [n.id, n]));
+  const branchTargets = new Set();
+  for (const n of graph.stages) {
+    if (n.type === 'condition') { branchTargets.add(n.true_next); branchTargets.add(n.false_next); }
+  }
+  // Sequential successor for each group node. Branch-target groups are reached
+  // via a condition's true/false edge, so they are never chained sequentially.
+  const seqNext = {};
+  for (let i = 0; i < graph.stages.length - 1; i++) {
+    const cur = graph.stages[i], nx = graph.stages[i + 1];
+    if (cur.type === 'group' && (nx.type === 'condition' || (nx.type === 'group' && !branchTargets.has(nx.id)))) {
+      seqNext[cur.id] = nx.id;
+    }
+  }
+
+  let currentId = graph.stages.length ? graph.stages[0].id : null;
+  const visited = new Set();
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
+    const node = nodes[currentId];
+    if (!node) break;
+
+    if (node.type === 'group') {
+      const results = await runStage({ agents: node.agents }, { ...baseCtx, blueprint, priorOutput });
+      for (const r of results) resultsByName[r.name] = r;
+      priorOutput = results.map(r => `## ${r.name}\n${r.text}`).join('\n\n');
+      totals.tokens += results.reduce((s, r) => s + r.tokens, 0);
+      totals.costUsd += results.reduce((s, r) => s + r.costUsd, 0);
+      const b = budgetCheck(totals, baseCtx.limits);
+      if (b.exceeded) {
+        baseCtx.emit({ type: 'budget_exceeded', metric: b.metric, value: b.value, limit: b.limit });
+        status = 'aborted';
+        break;
+      }
+      currentId = seqNext[node.id] || null;
+    } else { // condition node
+      const cond = (blueprint.conditions || {})[node.condition_id];
+      const pass = evaluateCondition(cond, resultsByName);
+      const nextId = pass ? node.true_next : node.false_next;
+      baseCtx.emit({ type: 'condition_evaluated', condition: node.condition_id, result: pass, branch: nextId });
+      currentId = nextId;
+    }
+  }
+
+  return { status, totals, priorOutput };
+}
+
+async function run(blueprint, task, opts = {}) {
+  const emit = opts.emit || (() => {});
+  const plan = compile(blueprint);
+  const limits = resolveLimits(blueprint, opts);
+  const baseCtx = { task, contextBlock: opts.contextBlock || '', limits, model: opts.model, emit };
+
   emit({ type: 'swarm_start', agent: blueprint.name, status: 'running', message: task });
 
-  for (const stage of plan.stages) {
-    const results = await runStage(stage, {
-      blueprint, task, contextBlock: opts.contextBlock || '',
-      priorOutput, limits, model: opts.model, emit,
-    });
-    priorOutput = results.map(r => `## ${r.name}\n${r.text}`).join('\n\n');
-    totals.tokens += results.reduce((s, r) => s + r.tokens, 0);
-    totals.costUsd += results.reduce((s, r) => s + r.costUsd, 0);
-    const b = budgetCheck(totals, limits);
-    if (b.exceeded) {
-      emit({ type: 'budget_exceeded', metric: b.metric, value: b.value, limit: b.limit });
-      status = 'aborted';
-      break;
+  let status, totals, priorOutput;
+  if (plan.execution_graph) {
+    ({ status, totals, priorOutput } = await runGraph(plan.execution_graph, blueprint, baseCtx));
+  } else {
+    totals = { tokens: 0, costUsd: 0 };
+    priorOutput = '';
+    status = 'done';
+    for (const stage of plan.stages) {
+      const results = await runStage(stage, { ...baseCtx, blueprint, priorOutput });
+      priorOutput = results.map(r => `## ${r.name}\n${r.text}`).join('\n\n');
+      totals.tokens += results.reduce((s, r) => s + r.tokens, 0);
+      totals.costUsd += results.reduce((s, r) => s + r.costUsd, 0);
+      const b = budgetCheck(totals, limits);
+      if (b.exceeded) {
+        emit({ type: 'budget_exceeded', metric: b.metric, value: b.value, limit: b.limit });
+        status = 'aborted';
+        break;
+      }
     }
   }
 
@@ -174,7 +231,7 @@ async function run(blueprint, task, opts = {}) {
 module.exports = {
   buildAgentPrompt, parseCliEnvelope, CONTRACT_SUFFIX,
   shouldRetry, budgetCheck, resolveLimits, DEFAULTS,
-  runAgent, runStage, run,
+  runAgent, runStage, runGraph, run,
 };
 
 if (require.main === module) {
