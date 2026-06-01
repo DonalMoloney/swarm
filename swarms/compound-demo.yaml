@@ -1,0 +1,56 @@
+name: compound-demo
+description: "Demonstrates compound AND/OR/NOT conditions and fallback retry"
+flow: "research → if ready_to_synthesize: synthesis else: fallback"
+
+groups:
+  research:
+    description: "Parallel research agents"
+    agents: [searcher, analyst]
+  synthesis:
+    description: "Aggregate findings"
+    agents: [synthesizer]
+  fallback:
+    description: "Recover from insufficient research"
+    agents: [error_handler]
+
+conditions:
+  high_confidence:
+    type: agent_output
+    source: searcher
+    check: confidence
+    threshold: "> 0.8"
+  relevant_result:
+    type: agent_output
+    source: analyst
+    check: relevance
+    threshold: "> 0.6"
+  clean_validation:
+    type: validation
+    criteria: no-errors
+  # Compound: both the confidence AND relevance gates must pass.
+  both_signals:
+    type: compound
+    operator: AND
+    operands: [high_confidence, relevant_result]
+  # Compound NOT: validation must NOT have failed.
+  not_failed:
+    type: compound
+    operator: NOT
+    operands: [clean_validation]
+  # Nested compound: (high_confidence AND relevant_result) OR (NOT failed).
+  # When this falls through to fallback, retry the research stage once.
+  ready_to_synthesize:
+    type: compound
+    operator: OR
+    operands: [both_signals, not_failed]
+    retry_on_fallback: true
+
+agents:
+  searcher:
+    prompt: "Search the web for sources. Return JSON including a numeric confidence field."
+  analyst:
+    prompt: "Analyze the gathered sources. Return JSON including a numeric relevance field."
+  synthesizer:
+    prompt: "Synthesize the validated findings into a final report."
+  error_handler:
+    prompt: "Research was insufficient. Report what is missing and suggest next steps."

@@ -105,14 +105,16 @@ function validateBlueprint(blueprint) {
     }
   }
 
-  const VALID_CONDITION_TYPES = ['validation', 'agent_output'];
+  const VALID_CONDITION_TYPES = ['validation', 'agent_output', 'compound'];
   const VALID_CRITERIA = ['no-errors', 'no-warnings', 'all-pass'];
+  const VALID_OPERATORS = ['AND', 'OR', 'NOT'];
 
   if (blueprint.conditions !== undefined) {
     if (typeof blueprint.conditions !== 'object' || Array.isArray(blueprint.conditions)) {
       errors.push('conditions must be an object');
     } else {
       const definedAgents = blueprint.agents ? Object.keys(blueprint.agents) : [];
+      const definedConditions = Object.keys(blueprint.conditions);
       for (const [cname, c] of Object.entries(blueprint.conditions)) {
         if (!c || typeof c !== 'object' || Array.isArray(c)) {
           errors.push(`Condition "${cname}" must be an object`);
@@ -131,6 +133,37 @@ function validateBlueprint(blueprint) {
           if (!c.check) errors.push(`Condition "${cname}" (agent_output) is missing "check"`);
           if (!c.threshold) errors.push(`Condition "${cname}" (agent_output) is missing "threshold"`);
         }
+        if (c.retry_on_fallback !== undefined &&
+            c.retry_on_fallback !== true && c.retry_on_fallback !== false &&
+            c.retry_on_fallback !== 'true' && c.retry_on_fallback !== 'false') {
+          errors.push(`Condition "${cname}" has invalid retry_on_fallback "${c.retry_on_fallback}" (must be true or false)`);
+        }
+        if (c.type === 'compound') {
+          if (!VALID_OPERATORS.includes(c.operator)) {
+            errors.push(`Condition "${cname}" (compound) has invalid operator "${c.operator}" (valid: ${VALID_OPERATORS.join(', ')})`);
+          }
+          if (!Array.isArray(c.operands) || c.operands.length === 0) {
+            errors.push(`Condition "${cname}" (compound) must list at least one operand`);
+          } else {
+            if (c.operator === 'NOT' && c.operands.length !== 1) {
+              errors.push(`Condition "${cname}" (compound, NOT) must have exactly one operand`);
+            }
+            if ((c.operator === 'AND' || c.operator === 'OR') && c.operands.length < 2) {
+              errors.push(`Condition "${cname}" (compound, ${c.operator}) must have at least two operands`);
+            }
+            const missing = c.operands.filter(o => !definedConditions.includes(o));
+            if (missing.length) {
+              errors.push(`Condition "${cname}" (compound) references undefined operand conditions: ${missing.join(', ')}`);
+            }
+            if (c.operands.includes(cname)) {
+              errors.push(`Condition "${cname}" (compound) references itself`);
+            }
+          }
+        }
+      }
+      const cyclic = findConditionCycle(blueprint.conditions);
+      if (cyclic) {
+        errors.push(`Compound conditions form a cycle: ${cyclic.join(' → ')}`);
       }
     }
   }
@@ -197,6 +230,72 @@ function resolveExtends(blueprint, loadBlueprint, _seen) {
   return resolved;
 }
 
+/**
+ * Detects a cycle among compound conditions (operand references). Returns the
+ * cycle path as an array of condition names, or null if the graph is acyclic.
+ */
+function findConditionCycle(conditions) {
+  const WHITE = 0, GREY = 1, BLACK = 2;
+  const color = {};
+  const stack = [];
+
+  function visit(name) {
+    const c = conditions[name];
+    if (!c || c.type !== 'compound' || !Array.isArray(c.operands)) {
+      color[name] = BLACK;
+      return null;
+    }
+    color[name] = GREY;
+    stack.push(name);
+    for (const op of c.operands) {
+      if (color[op] === GREY) {
+        const start = stack.indexOf(op);
+        return stack.slice(start).concat(op);
+      }
+      if (color[op] !== BLACK) {
+        const found = visit(op);
+        if (found) return found;
+      }
+    }
+    stack.pop();
+    color[name] = BLACK;
+    return null;
+  }
+
+  for (const name of Object.keys(conditions)) {
+    if (color[name] !== BLACK) {
+      const found = visit(name);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/**
+ * Recursively resolves a condition into a normalized tree. Compound conditions
+ * expand their operand references inline so the result is self-contained:
+ *
+ *   { name, type: 'compound', operator: 'AND', operands: [ <resolved>, ... ] }
+ *   { name, type: 'agent_output', source, check, threshold }
+ *   { name, type: 'validation', criteria }
+ *
+ * Assumes conditions have already passed validateBlueprint (no cycles, all refs
+ * defined). Throws on an unknown condition name as a defensive guard.
+ */
+function compileCondition(condName, conditions) {
+  const c = conditions && conditions[condName];
+  if (!c) throw new Error(`Unknown condition "${condName}"`);
+  if (c.type === 'compound') {
+    return {
+      name: condName,
+      type: 'compound',
+      operator: c.operator,
+      operands: c.operands.map(op => compileCondition(op, conditions)),
+    };
+  }
+  return { name: condName, ...c };
+}
+
 function buildExecutionGraph(blueprint) {
   const tokens = blueprint.flow.split(/→|->/).map(t => t.trim()).filter(Boolean);
   const stages = [];
@@ -222,6 +321,9 @@ function buildExecutionGraph(blueprint) {
     return id;
   }
 
+  let rCount = 0;
+  let prevStageId = null; // id of the most recent group stage (branch retry target)
+
   for (const token of tokens) {
     if (token.includes(',')) {
       throw new Error(`Phase-2 flow does not support comma-parallel syntax: "${token}" — use a group instead`);
@@ -235,11 +337,25 @@ function buildExecutionGraph(blueprint) {
       const cid = `c${++cCount}`;
       const trueId = allocId(trueName);
       const falseId = allocId(falseName);
+      const cond = blueprint.conditions && blueprint.conditions[condName];
       stages.push({ id: cid, type: 'condition', condition_id: condName, true_next: trueId, false_next: falseId });
       pushStage(trueName);
       pushStage(falseName);
+
+      // Fallback retry: after the else branch runs, loop back to the stage that
+      // preceded the branch so the `then` path gets another attempt.
+      if (cond && (cond.retry_on_fallback === true || cond.retry_on_fallback === 'true') && prevStageId) {
+        const rid = `r${++rCount}`;
+        stages.push({
+          id: rid,
+          type: 'retry',
+          after: falseId,
+          retry_target: prevStageId,
+          condition_id: condName,
+        });
+      }
     } else {
-      pushStage(token);
+      prevStageId = pushStage(token);
     }
   }
 
@@ -258,12 +374,18 @@ function compile(blueprint) {
   const usesPhase2 = !!blueprint.groups || /\bif\s/.test(blueprint.flow || '');
 
   if (usesPhase2) {
+    const conditions = blueprint.conditions || {};
+    const resolved_conditions = {};
+    for (const name of Object.keys(conditions)) {
+      resolved_conditions[name] = compileCondition(name, conditions);
+    }
     return {
       name: blueprint.name,
       description: blueprint.description || '',
       output: blueprint.output || 'markdown',
       groups: blueprint.groups || {},
-      conditions: blueprint.conditions || {},
+      conditions,
+      resolved_conditions,
       execution_graph: buildExecutionGraph(blueprint),
       agents: blueprint.agents,
     };
@@ -362,9 +484,21 @@ if (require.main === module) {
     console.log('\nExecution Plan:');
     console.log('─'.repeat(40));
     if (plan.execution_graph) {
+      const fmtCond = (c) => {
+        if (!c) return '?';
+        if (c.type === 'compound') {
+          if (c.operator === 'NOT') return `NOT(${fmtCond(c.operands[0])})`;
+          return `(${c.operands.map(fmtCond).join(` ${c.operator} `)})`;
+        }
+        return c.name;
+      };
       plan.execution_graph.stages.forEach((node) => {
         if (node.type === 'condition') {
-          console.log(`  ${node.id} ◇ if ${node.condition_id} → ${node.true_next} else ${node.false_next}`);
+          const tree = plan.resolved_conditions && plan.resolved_conditions[node.condition_id];
+          const expr = tree && tree.type === 'compound' ? ` = ${fmtCond(tree)}` : '';
+          console.log(`  ${node.id} ◇ if ${node.condition_id}${expr} → ${node.true_next} else ${node.false_next}`);
+        } else if (node.type === 'retry') {
+          console.log(`  ${node.id} ↻ retry after ${node.after} → back to ${node.retry_target}  (fallback of ${node.condition_id})`);
         } else {
           console.log(`  ${node.id} [${node.agents.join(' + ')}]  (group: ${node.group_id})`);
         }
@@ -385,4 +519,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { parseFlow, compile, validateBlueprint, resolveExtends, buildExecutionGraph };
+module.exports = { parseFlow, compile, validateBlueprint, resolveExtends, buildExecutionGraph, compileCondition, findConditionCycle };
