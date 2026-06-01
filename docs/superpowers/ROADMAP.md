@@ -13,55 +13,51 @@ grounded in what already exists in the codebase versus what is genuinely missing
 | Phase | Status | Summary |
 |-------|--------|---------|
 | **Phase 1 — Dashboard & Authoring UI** | ✅ Done | Live dashboard (topology, agents, log, history tabs), wizard, preview. Plus the polish/zoom/larger-node pass. |
-| **Phase 2 — Hierarchical Topology & Conditional Branching** | 🎨 Designed | Groups, conditions, branching. MVP (2.1) + deferred (2.2). See `specs/2026-05-31-swarm-phase2-extend-capabilities-design.md`. |
+| **Phase 2.1 — Hierarchical Topology & Conditional Branching** | ✅ Done | Groups, conditions, branching in compiler + dashboard. `execution_graph` shape. |
+| **Phase 2.2 — Compound Conditions & Fallback Retry** | ✅ Done | `AND`/`OR`/`NOT` compound conditions, fallback retry, `resolved_conditions` map. |
+| **Phase 3 — Reliable Execution Core** | ✅ Done | `contract.js` (structured output), `runner.js` (timeouts, retries, budgets, Phase-2 graph execution). 23/23 tests pass. |
+| **Phase 4 — Persistence & Results** | ✅ Done | Durable run archive, History tab wired to real store, replay from dashboard. |
+| **Phase 5 — Headless / CI Runner** | 🔲 Not started | `runner.js` is the foundation (CLI entry, exit codes) but no spec, no GitHub Action, no notifications. |
+| **Phase 6 — Authoring & Blueprint Library** | ✅ Done | `library.js`, versioning, templates, `swarm init` scaffolder, mature wizard. |
+| **Phase 7 — Observability & Cost** | ✅ Done | Token/cost accounting per run, metrics view in dashboard, budget alerts. |
+| **Phase 8 — Distribution & Onboarding** | 🔲 Not started | Marketplace packaging, quickstart, examples gallery, real documentation. |
+| **Phase 9 — Safety & Governance** | 🔲 Not started | Sandboxing, approval gates, audit log, permissions. |
 
-**The gap:** P1 and P2 are about *describing and visualizing* swarms. Almost
-nothing yet makes the **execution** itself reliable or durable. That is the
-distance between a demo and a product.
+**Where things stand:** The execution stack (Phases 1–4, 6–7) is complete. The
+project runs swarms reliably with structured output, durable history, cost tracking,
+and a library of blueprints. The remaining work is about **running unattended** (5),
+**distributing to others** (8), and **safety for real actions** (9).
 
 ---
 
-## Phase 2.2 — Finish the Deferred Branching (carryover)
+## Phase 2.2 — Compound Conditions & Fallback Retry ✅ Done
 
-The Phase 2 spec explicitly punts these; pick them up once 2.1 lands.
+Shipped on `main`. Compound `AND`/`OR`/`NOT` conditions, fallback retry, and
+`resolved_conditions` in the compiled output. See `swarms/compound-demo.yaml`.
+
+Still deferred (pull into a future phase):
 
 - **User-choice conditions** — modal/pause-resume; turns automation into
   human-in-the-loop steering. YAML, events, and modal behaviour already specced.
-- **Compound conditions** — `AND` / `OR` / `NOT` (parser extension in `compiler.js`).
-- **Fallback retry** — on main-branch failure, attempt the `fallback` group.
 - **Dynamic / stateful conditions & nested workflows** — agents reference
   sub-blueprints (effectively recursion in the execution graph).
 
 ---
 
-## Phase 3 — Reliable Execution Core *(foundation everything else needs)*
+## Phase 3 — Reliable Execution Core ✅ Done
 
-**Goal:** agents run predictably and fail safely.
-
-- Per-agent **timeouts, retries, and error propagation** (`agent_error` exists in
-  the event schema but needs real semantics).
-- A **structured agent-output contract** — agents return JSON with known fields.
-  *Phase 2's `agent_output` conditions are inert until this exists: you cannot
-  branch on `confidence > 0.8` if agents return free text.*
-- Per-agent / per-run **token & cost caps** with graceful abort.
-
-> Must precede Phase 2 branching going live — branches need something reliable
-> to branch *on*.
+Shipped on `main`. `runtime/contract.js` (structured output extract/validate/fallback),
+`runtime/runner.js` (timeouts with hard kill, retries, per-run budget abort,
+Phase-2 graph traversal via `runGraph`). 23/23 tests pass. CLI:
+`node runtime/runner.js swarms/<bp>.yaml "<task>" [--max-cost N] [--timeout S] [--model NAME]`.
 
 ---
 
-## Phase 4 — Persistence & Results
+## Phase 4 — Persistence & Results ✅ Done
 
-**Goal:** runs you can revisit, not ephemeral noise.
-
-- Durable **run history** — today `.swarm/` is wiped each run; `swarms/output/`
-  survives but isn't indexed. The dashboard **already has a History tab and a
-  `/history` route** — wire them to a real run store (a `runs/` directory of
-  JSON keeps the zero-dependency rule).
-- **Replay mode** — the dashboard's render path is fully event-driven (the mock
-  proves a canned `events.jsonl` replays verbatim). Ship "open past run" as a
-  first-class feature.
-- Result artifacts linked per run.
+Shipped on `main`. Durable run archive (`runtime/archive.js`), History tab wired
+to real run store, replay mode in the dashboard ("open past run"), result artifacts
+linked per run in `swarms/output/`.
 
 ---
 
@@ -69,32 +65,31 @@ The Phase 2 spec explicitly punts these; pick them up once 2.1 lands.
 
 **Goal:** swarms run without a human at the REPL.
 
-- `runtime/runner.js` that drives agents via the **Agent SDK**, not an
-  interactive Claude Code session.
-- **GitHub Action + cron triggers**; proper exit codes; CI-friendly logs.
-- **Notifications** (GitHub PR comment / Slack) on completion or failure.
+**Foundation already in place:** `runtime/runner.js` is a fully working
+standalone CLI with proper exit codes. Running a blueprint headlessly works today:
+`node runtime/runner.js swarms/research.yaml "my task"`.
 
-> The leap from "I run it while watching" to "it runs *for* me." Largest
-> architectural bet on the roadmap.
+**Still missing:**
+- **GitHub Action** — `.github/workflows/swarm.yml`, trigger on PR/push/cron.
+- **Notifications** — GitHub PR comment / Slack webhook on completion or failure.
+- **CI-friendly log formatting** — structured output for log aggregators.
 
----
-
-## Phase 6 — Authoring & Blueprint Library
-
-**Goal:** making and sharing swarms is easy.
-
-- Mature the **wizard** (live validation, the Phase 2 groups/conditions editor).
-- A **blueprint library** with versioning, templates, import/export, and a
-  `swarm init` scaffolder.
+> The leap from "I run it while watching" to "it runs *for* me." The runner
+> exists; the CI wiring and notification layer are what remain.
 
 ---
 
-## Phase 7 — Observability & Cost
+## Phase 6 — Authoring & Blueprint Library ✅ Done
 
-**Goal:** know what your swarms cost and how they behave over time.
+Shipped on `main`. `runtime/library.js`, versioning, templates, import/export,
+`swarm init` scaffolder, mature wizard with live validation.
 
-- Token/cost accounting per run and in aggregate (the `tokens` field is already
-  captured per agent); **budgets and alerts**; a cost/metrics view in the dashboard.
+---
+
+## Phase 7 — Observability & Cost ✅ Done
+
+Shipped on `main`. Token/cost accounting per run and in aggregate, budget alerts,
+cost/metrics view in the dashboard. `runtime/metrics.js`.
 
 ---
 
@@ -120,13 +115,17 @@ by others.
 ## Critical Path to Meaningful Daily Use
 
 ```
-Phase 3  →  Phase 4  →  Phase 5  →  Phase 8
-(reliable)  (durable)   (unattended) (portable)
+Phase 3 ✅ →  Phase 4 ✅ →  Phase 5  →  Phase 8
+(reliable)    (durable)     (unattended) (portable)
 ```
 
-Phases 2.2 / 6 / 7 / 9 are quality multipliers that interleave. In one line:
-**make execution reliable (3), make runs durable (4), make it run unattended (5),
+Phases 2.2 ✅ / 6 ✅ / 7 ✅ / 9 are quality multipliers. In one line:
+**make execution reliable (3 ✅), make runs durable (4 ✅), make it run unattended (5),
 make it installable everywhere (8).**
+
+**Remaining critical path:** Phase 5 (GitHub Action + notifications) → Phase 8
+(packaging + docs). Phase 9 (safety/governance) is a parallel track needed before
+sharing with others or running agents with real write access.
 
 ---
 
