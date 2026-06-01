@@ -176,3 +176,32 @@ module.exports = {
   shouldRetry, budgetCheck, resolveLimits, DEFAULTS,
   runAgent, runStage, run,
 };
+
+if (require.main === module) {
+  const fs = require('fs');
+  const path = require('path');
+  const yaml = require('./simple-yaml');
+  const { resolveExtends } = require('./compiler');
+
+  const [, , bpPath, task, ...rest] = process.argv;
+  if (!bpPath || !task) {
+    console.error('Usage: node runtime/runner.js <blueprint.yaml> "<task>" [--max-cost N] [--timeout S] [--model NAME]');
+    process.exit(1);
+  }
+  const opts = {};
+  for (let i = 0; i < rest.length; i++) {
+    if (rest[i] === '--max-cost') opts.maxCost = rest[++i];
+    else if (rest[i] === '--timeout') opts.timeout = rest[++i];
+    else if (rest[i] === '--model') opts.model = rest[++i];
+  }
+
+  const { appendEvent } = require('./events');
+  opts.emit = (e) => { appendEvent(e); const tag = e.agent || e.type; console.log(`[${tag}] ${e.message || e.status || e.type}`); };
+
+  let bp = yaml.parse(fs.readFileSync(path.resolve(bpPath), 'utf8'));
+  bp = resolveExtends(bp, (name) => yaml.parse(fs.readFileSync(path.resolve(path.dirname(bpPath), '..', `${name}.yaml`), 'utf8')));
+
+  run(bp, task, opts)
+    .then((s) => { console.log(`\n✓ ${s.status} — ${s.totalTokens} tokens, $${s.totalCostUsd.toFixed(4)}`); process.exit(s.status === 'done' ? 0 : 1); })
+    .catch((err) => { console.error(err.message); process.exit(1); });
+}
