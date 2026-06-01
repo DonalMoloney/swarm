@@ -30,11 +30,16 @@ function buildEdges(stages) {
       if (byId[n.false_next]) edges.push({ from: n.id, to: n.false_next, kind: 'false' });
     }
   }
-  // sequential: a group that is immediately followed by a condition flows into it
+  // sequential edges: connect consecutive stages that are NOT reached via a branch.
+  // group → condition flows into the condition; a group/condition → a following
+  // group flows sequentially UNLESS that group is a branch target (it is reached by
+  // the condition's true/false edge instead, so branch siblings are never chained).
   for (let i = 0; i < stages.length - 1; i++) {
     const cur = stages[i];
     const next = stages[i + 1];
-    if (cur.type === 'group' && next.type === 'condition') {
+    if (next.type === 'condition') {
+      if (cur.type === 'group') edges.push({ from: cur.id, to: next.id, kind: 'seq' });
+    } else if (next.type === 'group' && !branchTargets.has(next.id)) {
       edges.push({ from: cur.id, to: next.id, kind: 'seq' });
     }
   }

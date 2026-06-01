@@ -56,4 +56,29 @@ const multi = layoutExecutionGraph({ stages: [
 assert.strictEqual(multi.nodes.length, 7);
 assert.ok(multi.nodes.every(n => typeof n.cx === 'number'));
 
+// linear multi-group graph (no conditions): sequential edges + advancing columns
+const lin = layoutExecutionGraph({ stages: [
+  { id: 's1', type: 'group', group_id: 'a', agents: ['x'] },
+  { id: 's2', type: 'group', group_id: 'b', agents: ['y'] },
+  { id: 's3', type: 'group', group_id: 'c', agents: ['z'] },
+]});
+const linById = Object.fromEntries(lin.nodes.map(n => [n.id, n]));
+assert.strictEqual(linById.s1.col, 0, 'linear: first group in col 0');
+assert.strictEqual(linById.s2.col, 1, 'linear: second group in col 1');
+assert.strictEqual(linById.s3.col, 2, 'linear: third group in col 2');
+assert.deepStrictEqual(
+  lin.edges.map(e => `${e.from}->${e.to}:${e.kind}`).sort(),
+  ['s1->s2:seq', 's2->s3:seq'],
+  'linear groups are connected by sequential edges'
+);
+
+// branch-target siblings are NOT chained by a sequential edge
+const br = layoutExecutionGraph({ stages: [
+  { id: 's1', type: 'group', group_id: 'g', agents: ['x'] },
+  { id: 'c1', type: 'condition', condition_id: 'c', true_next: 's2', false_next: 's3' },
+  { id: 's2', type: 'group', group_id: 'g2', agents: ['y'] },
+  { id: 's3', type: 'group', group_id: 'g3', agents: ['z'] },
+]});
+assert.ok(!br.edges.some(e => e.from === 's2' && e.to === 's3'), 'branch siblings are not seq-linked');
+
 console.log('✓ graph layout — all tests pass');
