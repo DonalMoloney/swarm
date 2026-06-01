@@ -67,6 +67,7 @@ The `flow` field in blueprints controls execution topology:
 | `"A → B → C"` | Sequential pipeline |
 | `"A, B, C"` | All parallel |
 | `"A → B, C → D"` | Mixed: A, then B+C parallel, then D |
+| `"G → if cond: X else: Y"` | Run group/agent G, then branch to X or Y based on condition `cond` (Phase 2) |
 
 `→` and `->` are both accepted. Comma = parallel within a stage. Arrow = next stage.
 
@@ -105,6 +106,29 @@ agents:
 ```
 
 Required fields: `name`, `flow`, `agents`. Every agent name in `flow` must have an entry in `agents`.
+
+**Phase 2 — groups & conditions:**
+
+```yaml
+flow: "research → if high_confidence: synthesis else: fallback"
+groups:
+  research:
+    agents: [searcher, analyst]
+  synthesis:
+    agents: [synthesizer]
+  fallback:
+    agents: [error_handler]
+conditions:
+  high_confidence:
+    type: agent_output      # or: validation
+    source: searcher
+    check: confidence
+    threshold: "> 0.8"
+```
+
+When `groups` are present or the flow contains `if`, `compile()` emits an
+`execution_graph` (group + condition nodes) instead of linear `stages`.
+Phase-1 blueprints are unaffected.
 
 ## Future Work
 

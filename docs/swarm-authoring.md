@@ -362,3 +362,16 @@ This checks:
 - [/swarm new](/skills/swarm-new.md) — Auto-generate blueprints
 - [/swarm run](/skills/swarm.md) — Execute blueprints
 - [/swarm preview](/skills/swarm-preview.md) — Validate before running
+
+## Conditional Topology (Phase 2)
+
+Blueprints can group agents and branch on conditions.
+
+- **`groups`** — named sets of agents that execute as a unit. Each group needs an `agents` list; `description` is optional.
+- **`conditions`** — named decision gates. Two types are supported:
+  - `type: validation` with `criteria: no-errors | no-warnings | all-pass`
+  - `type: agent_output` with `source` (an agent name), `check` (a field in that agent's JSON output), and `threshold` (e.g. `"> 0.8"`, `"== success"`).
+- **Conditional flow** — `"G → if cond: trueTarget else: falseTarget"`. Targets are group or agent names. Note: comma-parallel syntax is not supported in Phase-2 flows — group the agents instead.
+
+Note: condition *definitions* are validated and compiled into the execution
+graph now. Live *evaluation* of conditions during a run is a later phase.
