@@ -90,21 +90,34 @@ function validateBlueprint(blueprint) {
  */
 function generateExecutionPlan(blueprintYaml) {
   try {
-    // Parse YAML
     const blueprint = yaml.parse(blueprintYaml);
+    const isPhase2 = !!blueprint.groups || /\bif\s/.test(blueprint.flow || '');
 
-    // Validate blueprint
-    const errors = validateBlueprint(blueprint);
-    if (errors.length > 0) {
+    // Phase-1 keeps the existing local validation (and its error messages).
+    // Phase-2 validation is performed by compile() below (it throws on errors).
+    if (!isPhase2) {
+      const errors = validateBlueprint(blueprint);
+      if (errors.length > 0) {
+        return { error: errors.join('\n') };
+      }
+    }
+
+    const compiled = compile(blueprint);
+
+    if (compiled.execution_graph) {
       return {
-        error: errors.join('\n'),
+        name: compiled.name,
+        description: compiled.description || '',
+        output: compiled.output || 'markdown',
+        groups: compiled.groups,
+        conditions: compiled.conditions,
+        execution_graph: compiled.execution_graph,
+        agents: compiled.agents,
+        contexts: blueprint.context || [],
+        actions: blueprint.actions || [],
       };
     }
 
-    // Compile blueprint using existing compiler
-    const compiled = compile(blueprint);
-
-    // Return execution plan structure
     return {
       name: compiled.name,
       description: compiled.description || '',
@@ -115,9 +128,7 @@ function generateExecutionPlan(blueprintYaml) {
       actions: blueprint.actions || [],
     };
   } catch (err) {
-    return {
-      error: err.message,
-    };
+    return { error: err.message };
   }
 }
 
