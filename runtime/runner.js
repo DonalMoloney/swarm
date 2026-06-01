@@ -139,35 +139,49 @@ async function run(blueprint, task, opts = {}) {
   let priorOutput = '';
   let status = 'done';
 
-  emit({ type: 'swarm_start', agent: blueprint.name, status: 'running', message: task });
+  // Collect every emitted event so the run can be archived for replay
+  const collected = [];
+  const record = (e) => { collected.push(e); emit(e); };
+
+  record({
+    type: 'swarm_start', agent: blueprint.name, status: 'running', message: task,
+    stages: plan.stages, agents: Object.keys(blueprint.agents),
+  });
 
   for (const stage of plan.stages) {
     const results = await runStage(stage, {
       blueprint, task, contextBlock: opts.contextBlock || '',
-      priorOutput, limits, model: opts.model, emit,
+      priorOutput, limits, model: opts.model, emit: record,
     });
     priorOutput = results.map(r => `## ${r.name}\n${r.text}`).join('\n\n');
     totals.tokens += results.reduce((s, r) => s + r.tokens, 0);
     totals.costUsd += results.reduce((s, r) => s + r.costUsd, 0);
     const b = budgetCheck(totals, limits);
     if (b.exceeded) {
-      emit({ type: 'budget_exceeded', metric: b.metric, value: b.value, limit: b.limit });
+      record({ type: 'budget_exceeded', metric: b.metric, value: b.value, limit: b.limit });
       status = 'aborted';
       break;
     }
   }
 
-  // Save final output + history (best-effort; mirrors skills/swarm.md)
+  record({ type: 'swarm_done', status, total_tokens: totals.tokens, total_cost_usd: totals.costUsd });
+
+  // Persist the run durably: events archive + enriched index record
   try {
     const fs = require('fs');
     const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
     const id = `${blueprint.name}-${stamp}`;
     fs.mkdirSync('swarms/output', { recursive: true });
     fs.writeFileSync(`swarms/output/${id}.md`, priorOutput, 'utf8');
-    require('./history').append({ id, blueprint: blueprint.name, task, file: `${id}.md`, ts: Date.now() });
+    require('./archive').archiveRun({
+      id, blueprint: blueprint.name, task,
+      events: collected, status,
+      totalTokens: totals.tokens, totalCostUsd: totals.costUsd,
+      agentCount: Object.keys(blueprint.agents).length,
+      outputFile: `${id}.md`, ts: Date.now(),
+    });
   } catch (e) { /* non-fatal */ }
 
-  emit({ type: 'swarm_done', status, total_tokens: totals.tokens, total_cost_usd: totals.costUsd });
   return { status, totalTokens: totals.tokens, totalCostUsd: totals.costUsd };
 }
 

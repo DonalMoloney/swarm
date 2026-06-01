@@ -145,3 +145,27 @@ test('run aborts when the cost budget is exceeded', async () => {
     process.chdir(cwd);
   }
 });
+
+test('run archives events and enriches the history record', async () => {
+  process.env.SWARM_CLAUDE_BIN = FAKE;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarm-archive-'));
+  const cwd = process.cwd();
+  process.chdir(dir);
+  fs.mkdirSync('swarms/output', { recursive: true });
+  try {
+    const blueprint = { name: 'demo', flow: 'a → b', agents: { a: { prompt: 'A' }, b: { prompt: 'B' } } };
+    await run(blueprint, 'task', {});
+    const history = require('./history');
+    const rec = history.list()[0];
+    assert.equal(rec.blueprint, 'demo');
+    assert.equal(rec.status, 'done');
+    assert.equal(rec.agentCount, 2);
+    assert.ok(rec.events_file, 'record has events_file');
+    const ev = fs.readFileSync(path.join('swarms/output', rec.events_file), 'utf8')
+      .split('\n').filter(Boolean).map(JSON.parse);
+    assert.ok(ev.some(e => e.type === 'swarm_start' && Array.isArray(e.agents)), 'swarm_start carries agents');
+    assert.ok(ev.some(e => e.type === 'swarm_done'), 'archive includes swarm_done');
+  } finally {
+    process.chdir(cwd);
+  }
+});
