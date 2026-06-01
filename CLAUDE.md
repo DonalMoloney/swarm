@@ -132,6 +132,33 @@ When `groups` are present or the flow contains `if`, `compile()` emits an
 `execution_graph` (group + condition nodes) instead of linear `stages`.
 Phase-1 blueprints are unaffected.
 
+**Phase 2.2 — compound conditions & fallback retry:**
+
+Conditions can be combined with `AND`/`OR`/`NOT` via a `compound` type. Operands
+reference other condition names (including other compound conditions, nested
+arbitrarily — cycles are rejected at validation time):
+
+```yaml
+conditions:
+  both_signals:
+    type: compound
+    operator: AND               # AND | OR (≥2 operands) | NOT (exactly 1)
+    operands: [high_confidence, relevant_result]
+  ready:
+    type: compound
+    operator: OR
+    operands: [both_signals, not_failed]
+    retry_on_fallback: true     # after else branch runs, loop back to pre-branch stage
+```
+
+`compile()` adds a `resolved_conditions` map: each condition resolved into a
+self-contained tree (compound operands expanded inline). `compileCondition(name,
+conditions)` is exported for resolving a single condition recursively.
+
+`retry_on_fallback: true` makes `buildExecutionGraph` emit a `retry` node after
+the false branch: `{ type: 'retry', after: <falseId>, retry_target: <preBranchStageId>, condition_id }`.
+See `swarms/compound-demo.yaml` for a worked example.
+
 ## Roadmap
 
 The full phased plan from demo to end-to-end product lives in [`docs/superpowers/ROADMAP.md`](docs/superpowers/ROADMAP.md). Highlights:
