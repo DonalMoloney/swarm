@@ -9,6 +9,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const metrics = require('./metrics');
 
 const DEFAULT_PORT = 7700;
 const EVENTS_FILE = path.join(process.cwd(), '.swarm', 'events.jsonl');
@@ -111,6 +112,17 @@ function startServer(port) {
           res.end('bad json');
         }
       });
+
+    } else if (url.pathname === '/metrics') {
+      const { events } = readEvents();
+      const total = metrics.totalTokens(events);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        totalTokens: total,
+        perAgent: metrics.perAgent(events),
+        estimatedCostUsd: metrics.estimateCost(total),
+        budget: metrics.budgetUsage(events),
+      }));
 
     } else if (url.pathname === '/history') {
       const indexFile = path.join(process.cwd(), 'swarms', 'output', 'index.json');
