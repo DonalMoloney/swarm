@@ -282,10 +282,11 @@ node runtime/runner.js swarms/<blueprint>.yaml "<task>" [--max-cost <usd>] [--ti
 
 The runner drives the `claude` CLI per agent, appends the same events to
 `.swarm/events.jsonl` (now including `tokens`, `cost_usd`, `status`, plus
-`agent_retry` and `budget_exceeded`), saves output, and records history.
-Blueprints that use Phase-2 groups/conditions are **not** handled by the runner —
-run those with the steps above. Per-run limits come from the blueprint's
-`limits:` block (or the CLI flags):
+`agent_retry`, `budget_exceeded`, and `condition_evaluated`), saves output, and
+records history. Phase-2 groups/conditions blueprints are handled too: the
+runner evaluates each condition against the source agent's structured output
+(e.g. `confidence > 0.8`) and routes the true/false branch deterministically.
+Per-run limits come from the blueprint's `limits:` block (or the CLI flags):
 
 ```yaml
 limits:
