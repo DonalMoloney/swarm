@@ -1,0 +1,31 @@
+name: research-conditional
+description: "Research, then branch to synthesis or fallback based on searcher confidence"
+flow: "research → if high_confidence: synthesis else: fallback"
+
+groups:
+  research:
+    description: "Parallel research agents"
+    agents: [searcher, analyst]
+  synthesis:
+    description: "Aggregate findings"
+    agents: [synthesizer]
+  fallback:
+    description: "Recover from low-confidence research"
+    agents: [error_handler]
+
+conditions:
+  high_confidence:
+    type: agent_output
+    source: searcher
+    check: confidence
+    threshold: "> 0.8"
+
+agents:
+  searcher:
+    prompt: "Search the web for sources. Return JSON including a numeric confidence field."
+  analyst:
+    prompt: "Analyze the gathered sources for relevance and quality."
+  synthesizer:
+    prompt: "Synthesize the high-confidence findings into a final report."
+  error_handler:
+    prompt: "Research confidence was low. Report what is missing and suggest next steps."

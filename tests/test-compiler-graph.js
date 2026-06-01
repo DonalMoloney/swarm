@@ -96,4 +96,15 @@ assert.throws(
   'malformed if-segment throws'
 );
 
+// --- End-to-end: parse the shipped example YAML and compile it ---
+const fs = require('fs');
+const path = require('path');
+const yaml = require('../runtime/simple-yaml');
+const exampleSrc = fs.readFileSync(path.join(__dirname, '..', 'swarms', 'research-conditional.yaml'), 'utf8');
+const example = yaml.parse(exampleSrc);
+const ep = compile(example);
+assert.ok(ep.execution_graph, 'example compiles to an execution graph');
+assert.ok(ep.execution_graph.stages.some(n => n.type === 'condition'), 'example graph contains a condition node');
+assert.ok(ep.execution_graph.stages[0].type === 'group', 'example graph starts with a group stage');
+
 console.log('✓ compiler execution graph + backward compat — all tests pass');

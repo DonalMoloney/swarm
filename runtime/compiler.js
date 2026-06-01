@@ -361,12 +361,22 @@ if (require.main === module) {
     const plan = compile(blueprint);
     console.log('\nExecution Plan:');
     console.log('─'.repeat(40));
-    plan.stages.forEach((stage, i) => {
-      const label = stage.type === 'parallel'
-        ? `[${stage.agents.join(' + ')}]  (parallel)`
-        : `${stage.agents[0]}  (sequential)`;
-      console.log(`  Stage ${i + 1}: ${label}`);
-    });
+    if (plan.execution_graph) {
+      plan.execution_graph.stages.forEach((node) => {
+        if (node.type === 'condition') {
+          console.log(`  ${node.id} ◇ if ${node.condition_id} → ${node.true_next} else ${node.false_next}`);
+        } else {
+          console.log(`  ${node.id} [${node.agents.join(' + ')}]  (group: ${node.group_id})`);
+        }
+      });
+    } else {
+      plan.stages.forEach((stage, i) => {
+        const label = stage.type === 'parallel'
+          ? `[${stage.agents.join(' + ')}]  (parallel)`
+          : `${stage.agents[0]}  (sequential)`;
+        console.log(`  Stage ${i + 1}: ${label}`);
+      });
+    }
     console.log('─'.repeat(40));
     console.log(`Output format: ${plan.output}\n`);
   } catch (e) {
