@@ -113,11 +113,10 @@ function startServer(port) {
       });
 
     } else if (url.pathname === '/history') {
-      const indexFile = path.join(process.cwd(), 'swarms', 'output', 'index.json');
-      let data = '[]';
-      try { data = fs.readFileSync(indexFile, 'utf8'); } catch {}
+      let records = [];
+      try { records = require('./history').list(); } catch {}
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(data);
+      res.end(JSON.stringify(records));
 
     } else if (url.pathname.startsWith('/run/') && url.pathname.endsWith('/events')) {
       const id = decodeURIComponent(url.pathname.slice('/run/'.length, -'/events'.length));
