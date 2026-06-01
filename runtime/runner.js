@@ -143,13 +143,27 @@ async function runGraph(graph, blueprint, baseCtx) {
   for (const n of graph.stages) {
     if (n.type === 'condition') { branchTargets.add(n.true_next); branchTargets.add(n.false_next); }
   }
-  // Sequential successor for each group node. Branch-target groups are reached
-  // via a condition's true/false edge, so they are never chained sequentially.
+  // Sequential successor map.
+  // (1) Spine: a non-branch-target group flows to the next node in order.
+  // (2) Convergence: a conditional's TWO branch groups both flow to the node that
+  //     follows the conditional's branch span. The compiler emits a conditional as
+  //     [condition, trueGroup, falseGroup, <join>], so both branches rejoin the
+  //     post-conditional flow — without this the TRUE branch would dead-end.
+  const idxOf = {};
+  graph.stages.forEach((n, i) => { idxOf[n.id] = i; });
   const seqNext = {};
   for (let i = 0; i < graph.stages.length - 1; i++) {
     const cur = graph.stages[i], nx = graph.stages[i + 1];
-    if (cur.type === 'group' && (nx.type === 'condition' || (nx.type === 'group' && !branchTargets.has(nx.id)))) {
+    if (cur.type === 'group' && !branchTargets.has(cur.id) &&
+        (nx.type === 'condition' || (nx.type === 'group' && !branchTargets.has(nx.id)))) {
       seqNext[cur.id] = nx.id;
+    }
+  }
+  for (const n of graph.stages) {
+    if (n.type === 'condition') {
+      const last = Math.max(idxOf[n.true_next], idxOf[n.false_next]);
+      const join = graph.stages[last + 1];
+      if (join) { seqNext[n.true_next] = join.id; seqNext[n.false_next] = join.id; }
     }
   }
 

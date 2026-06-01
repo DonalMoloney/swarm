@@ -164,6 +164,50 @@ test('run routes a Phase-2 graph to the FALSE branch when the condition fails', 
   assert.ok(!started.includes('y'), 'did not run the synth (true) branch');
 });
 
+async function runBlueprint(bp) {
+  process.env.SWARM_CLAUDE_BIN = FAKE;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarm-graph-'));
+  const cwd = process.cwd();
+  process.chdir(dir);
+  fs.mkdirSync('swarms/output', { recursive: true });
+  try {
+    const events = [];
+    await run(bp, 't', { emit: e => events.push(e) });
+    return events.filter(e => e.type === 'agent_start').map(e => e.agent);
+  } finally {
+    process.chdir(cwd);
+  }
+}
+
+test('a non-terminal conditional CONVERGES: both branches continue to the join stage', async () => {
+  const mk = (marker) => ({
+    name: 'conv',
+    flow: 'research → if hc: synth else: fb → finalize',
+    groups: { research: { agents: ['s'] }, synth: { agents: ['y'] }, fb: { agents: ['z'] }, finalize: { agents: ['f'] } },
+    conditions: { hc: { type: 'agent_output', source: 's', check: 'confidence', threshold: '> 0.8' } },
+    agents: { s: { prompt: `search ${marker}` }, y: { prompt: 'syn' }, z: { prompt: 'fb' }, f: { prompt: 'final' } },
+  });
+  // TRUE branch must still reach finalize (this is the regression the seqNext fix addresses)
+  assert.deepEqual(await runBlueprint(mk('HIGHCONF')), ['s', 'y', 'f'], 'true branch converges to finalize');
+  // FALSE branch likewise
+  assert.deepEqual(await runBlueprint(mk('LOWCONF')), ['s', 'z', 'f'], 'false branch converges to finalize');
+});
+
+test('run routes through chained conditionals', async () => {
+  const bp = {
+    name: 'chain',
+    flow: 'g1 → if c1: g2 else: g3 → if c2: g4 else: g5',
+    groups: { g1: { agents: ['a1'] }, g2: { agents: ['a2'] }, g3: { agents: ['a3'] }, g4: { agents: ['a4'] }, g5: { agents: ['a5'] } },
+    conditions: {
+      c1: { type: 'agent_output', source: 'a1', check: 'confidence', threshold: '> 0.8' },
+      c2: { type: 'agent_output', source: 'a1', check: 'confidence', threshold: '> 0.9' },
+    },
+    agents: { a1: { prompt: 'lead HIGHCONF' }, a2: { prompt: 'x' }, a3: { prompt: 'x' }, a4: { prompt: 'x' }, a5: { prompt: 'x' } },
+  };
+  // a1 confidence 0.95 → c1 true → g2 → c2 (0.95 > 0.9) true → g4
+  assert.deepEqual(await runBlueprint(bp), ['a1', 'a2', 'a4'], 'chains c1-true then c2-true');
+});
+
 test('run aborts when the cost budget is exceeded', async () => {
   process.env.SWARM_CLAUDE_BIN = FAKE;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarm-budget-'));
