@@ -295,3 +295,9 @@ limits:
   max_cost_usd: 1.00   # per-run budget; run aborts if exceeded
   max_tokens: 200000
 ```
+
+Every runner execution is **archived** for replay: the full event stream is
+written to `swarms/output/<id>.events.jsonl` and an enriched record (status,
+tokens, cost, agent count) is appended to `swarms/output/index.json`. In the
+dashboard's **History** tab, clicking a past run replays it in the Live view
+(served from `GET /run/<id>/events`).

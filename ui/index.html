@@ -471,8 +471,9 @@
   }
 
   // Connect SSE
+  let es = null;
   function connect() {
-    const es = new EventSource('/events');
+    es = new EventSource('/events');
     es.onmessage = e => {
       try { processEvent(JSON.parse(e.data)); } catch {}
     };
@@ -483,6 +484,33 @@
   }
 
   connect();
+
+  function resetView() {
+    state.swarmName = ''; state.task = ''; state.stages = []; state.agents = {}; state.status = 'idle';
+    for (const k in agentColorMap) delete agentColorMap[k];
+    colorIdx = 0;
+    document.getElementById('log-stream').textContent = '';
+    document.getElementById('task-list').innerHTML = '<div id="empty-state">No agents yet</div>';
+    updateHeader();
+    renderTaskList();
+  }
+
+  let replayTimers = [];
+  function replayRun(id) {
+    showTab('live');
+    replayTimers.forEach(clearTimeout);
+    replayTimers = [];
+    if (es) { es.close(); es = null; }   // replay mode: stop the live feed
+    resetView();
+    fetch('/run/' + encodeURIComponent(id) + '/events')
+      .then(r => r.json())
+      .then(events => {
+        events.forEach((e, i) => {
+          replayTimers.push(setTimeout(() => processEvent(e), i * 250));
+        });
+      })
+      .catch(() => {});
+  }
 
   function showTab(tab) {
     ['live', 'history', 'decompose'].forEach(t => {
@@ -514,7 +542,7 @@
         records.forEach(r => {
           const tr = document.createElement('tr');
           tr.style.cursor = 'pointer';
-          tr.addEventListener('click', () => openRun(r.file, r.id));
+          tr.addEventListener('click', () => replayRun(r.id));
           [
             r.id,
             r.blueprint,
