@@ -37,7 +37,9 @@ function validateBlueprint(blueprint) {
     errors.push('Missing required field: agents (must be an object)');
   }
 
-  if (blueprint.flow && blueprint.agents) {
+  const usesPhase2 = !!blueprint.groups || /\bif\s/.test(blueprint.flow || '');
+
+  if (blueprint.flow && blueprint.agents && !usesPhase2) {
     const stages = parseFlow(blueprint.flow);
     const allAgentNames = stages.flatMap(s => s.agents);
     const defined = Object.keys(blueprint.agents);
@@ -71,6 +73,104 @@ function validateBlueprint(blueprint) {
     }
   }
 
+  if (blueprint.groups !== undefined) {
+    if (typeof blueprint.groups !== 'object' || Array.isArray(blueprint.groups)) {
+      errors.push('groups must be an object');
+    } else {
+      const definedAgents = blueprint.agents ? Object.keys(blueprint.agents) : [];
+      for (const [gname, g] of Object.entries(blueprint.groups)) {
+        if (!Array.isArray(g.agents) || g.agents.length === 0) {
+          errors.push(`Group "${gname}" must list at least one agent`);
+          continue;
+        }
+        const missing = g.agents.filter(a => !definedAgents.includes(a));
+        if (missing.length) {
+          errors.push(`Group "${gname}" references undefined agents: ${missing.join(', ')}`);
+        }
+      }
+    }
+  }
+
+  // Flat (non-conditional) group flows: every token must be a defined group or agent.
+  // Conditional (`if`) flows are validated separately.
+  if (blueprint.flow && blueprint.agents && blueprint.groups &&
+      typeof blueprint.groups === 'object' && !Array.isArray(blueprint.groups) &&
+      !/\bif\s/.test(blueprint.flow)) {
+    const allTokens = parseFlow(blueprint.flow).flatMap(s => s.agents);
+    const definedGroups = Object.keys(blueprint.groups);
+    const definedAgents = Object.keys(blueprint.agents);
+    const unknown = allTokens.filter(t => !definedGroups.includes(t) && !definedAgents.includes(t));
+    if (unknown.length) {
+      errors.push(`Flow references undefined groups or agents: ${unknown.join(', ')}`);
+    }
+  }
+
+  const VALID_CONDITION_TYPES = ['validation', 'agent_output'];
+  const VALID_CRITERIA = ['no-errors', 'no-warnings', 'all-pass'];
+
+  if (blueprint.conditions !== undefined) {
+    if (typeof blueprint.conditions !== 'object' || Array.isArray(blueprint.conditions)) {
+      errors.push('conditions must be an object');
+    } else {
+      const definedAgents = blueprint.agents ? Object.keys(blueprint.agents) : [];
+      for (const [cname, c] of Object.entries(blueprint.conditions)) {
+        if (!c || typeof c !== 'object' || Array.isArray(c)) {
+          errors.push(`Condition "${cname}" must be an object`);
+          continue;
+        }
+        if (!VALID_CONDITION_TYPES.includes(c.type)) {
+          errors.push(`Condition "${cname}" has invalid type "${c.type}" (valid: ${VALID_CONDITION_TYPES.join(', ')})`);
+          continue;
+        }
+        if (c.type === 'validation' && !VALID_CRITERIA.includes(c.criteria)) {
+          errors.push(`Condition "${cname}" has invalid criteria "${c.criteria}" (valid: ${VALID_CRITERIA.join(', ')})`);
+        }
+        if (c.type === 'agent_output') {
+          if (!c.source) errors.push(`Condition "${cname}" (agent_output) is missing "source"`);
+          else if (!definedAgents.includes(c.source)) errors.push(`Condition "${cname}" references undefined source agent "${c.source}"`);
+          if (!c.check) errors.push(`Condition "${cname}" (agent_output) is missing "check"`);
+          if (!c.threshold) errors.push(`Condition "${cname}" (agent_output) is missing "threshold"`);
+        }
+      }
+    }
+  }
+
+  if (blueprint.flow && /\bif\s/.test(blueprint.flow)) {
+    const definedConditions = blueprint.conditions ? Object.keys(blueprint.conditions) : [];
+    const definedGroups = blueprint.groups ? Object.keys(blueprint.groups) : [];
+    const definedAgents = blueprint.agents ? Object.keys(blueprint.agents) : [];
+    const isKnownTarget = (name) => definedGroups.includes(name) || definedAgents.includes(name);
+    const segments = blueprint.flow.split(/→|->/).map(s => s.trim()).filter(Boolean);
+
+    for (const seg of segments) {
+      if (/^if\s/.test(seg)) {
+        const m = seg.match(/^if\s+(.+?):\s*(.+?)\s+else:\s*(.+)$/);
+        if (!m) { errors.push(`Malformed conditional flow segment: "${seg}"`); continue; }
+        const cond = m[1].trim();
+        const trueTarget = m[2].trim();
+        const falseTarget = m[3].trim();
+        if (!definedConditions.includes(cond)) {
+          errors.push(`Flow references undefined condition "${cond}"`);
+        }
+        for (const target of [trueTarget, falseTarget]) {
+          if (!isKnownTarget(target)) {
+            errors.push(`Flow branch target "${target}" is not a defined group or agent`);
+          }
+        }
+      } else {
+        for (const name of seg.split(',').map(s => s.trim()).filter(Boolean)) {
+          if (!isKnownTarget(name)) {
+            errors.push(`Flow references "${name}" which is not a defined group or agent`);
+          }
+        }
+      }
+    }
+  }
+
+  if (blueprint.flow && usesPhase2 && blueprint.flow.includes(',')) {
+    errors.push('Phase-2 flows do not support comma-parallel syntax — list agents in a group instead');
+  }
+
   return errors;
 }
 
@@ -97,6 +197,55 @@ function resolveExtends(blueprint, loadBlueprint, _seen) {
   return resolved;
 }
 
+function buildExecutionGraph(blueprint) {
+  const tokens = blueprint.flow.split(/→|->/).map(t => t.trim()).filter(Boolean);
+  const stages = [];
+  let sCount = 0;
+  let cCount = 0;
+  const stageIdFor = {};
+  const pushed = new Set();
+
+  function groupAgents(name) {
+    if (blueprint.groups && blueprint.groups[name]) return blueprint.groups[name].agents;
+    return [name]; // a bare agent name acts as its own single-agent stage
+  }
+  function allocId(name) {
+    if (!stageIdFor[name]) stageIdFor[name] = `s${++sCount}`;
+    return stageIdFor[name];
+  }
+  function pushStage(name) {
+    const id = allocId(name);
+    if (!pushed.has(id)) {
+      pushed.add(id);
+      stages.push({ id, type: 'group', group_id: name, agents: groupAgents(name) });
+    }
+    return id;
+  }
+
+  for (const token of tokens) {
+    if (token.includes(',')) {
+      throw new Error(`Phase-2 flow does not support comma-parallel syntax: "${token}" — use a group instead`);
+    }
+    if (/^if\s/.test(token)) {
+      const m = token.match(/^if\s+(.+?):\s*(.+?)\s+else:\s*(.+)$/);
+      if (!m) throw new Error(`Malformed conditional flow segment: "${token}"`);
+      const condName = m[1].trim();
+      const trueName = m[2].trim();
+      const falseName = m[3].trim();
+      const cid = `c${++cCount}`;
+      const trueId = allocId(trueName);
+      const falseId = allocId(falseName);
+      stages.push({ id: cid, type: 'condition', condition_id: condName, true_next: trueId, false_next: falseId });
+      pushStage(trueName);
+      pushStage(falseName);
+    } else {
+      pushStage(token);
+    }
+  }
+
+  return { stages };
+}
+
 function compile(blueprint) {
   if (blueprint.extends) {
     throw new Error('Blueprint has unresolved "extends" field — call resolveExtends() before compile()');
@@ -104,6 +253,20 @@ function compile(blueprint) {
   const errors = validateBlueprint(blueprint);
   if (errors.length) {
     throw new Error(`Blueprint validation failed:\n${errors.map(e => `  • ${e}`).join('\n')}`);
+  }
+
+  const usesPhase2 = !!blueprint.groups || /\bif\s/.test(blueprint.flow || '');
+
+  if (usesPhase2) {
+    return {
+      name: blueprint.name,
+      description: blueprint.description || '',
+      output: blueprint.output || 'markdown',
+      groups: blueprint.groups || {},
+      conditions: blueprint.conditions || {},
+      execution_graph: buildExecutionGraph(blueprint),
+      agents: blueprint.agents,
+    };
   }
 
   const stages = parseFlow(blueprint.flow);
@@ -198,12 +361,22 @@ if (require.main === module) {
     const plan = compile(blueprint);
     console.log('\nExecution Plan:');
     console.log('─'.repeat(40));
-    plan.stages.forEach((stage, i) => {
-      const label = stage.type === 'parallel'
-        ? `[${stage.agents.join(' + ')}]  (parallel)`
-        : `${stage.agents[0]}  (sequential)`;
-      console.log(`  Stage ${i + 1}: ${label}`);
-    });
+    if (plan.execution_graph) {
+      plan.execution_graph.stages.forEach((node) => {
+        if (node.type === 'condition') {
+          console.log(`  ${node.id} ◇ if ${node.condition_id} → ${node.true_next} else ${node.false_next}`);
+        } else {
+          console.log(`  ${node.id} [${node.agents.join(' + ')}]  (group: ${node.group_id})`);
+        }
+      });
+    } else {
+      plan.stages.forEach((stage, i) => {
+        const label = stage.type === 'parallel'
+          ? `[${stage.agents.join(' + ')}]  (parallel)`
+          : `${stage.agents[0]}  (sequential)`;
+        console.log(`  Stage ${i + 1}: ${label}`);
+      });
+    }
     console.log('─'.repeat(40));
     console.log(`Output format: ${plan.output}\n`);
   } catch (e) {
@@ -212,4 +385,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { parseFlow, compile, validateBlueprint, resolveExtends };
+module.exports = { parseFlow, compile, validateBlueprint, resolveExtends, buildExecutionGraph };
