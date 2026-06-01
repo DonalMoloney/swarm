@@ -20,7 +20,7 @@ grounded in what already exists in the codebase versus what is genuinely missing
 | **Phase 5 — Headless / CI Runner** | ✅ Done | GitHub Actions workflow, zero-dep `notify.js` (GitHub PR comment + Slack), `--ci` annotation mode, `--notify-slack` / `--notify-pr` CLI flags. |
 | **Phase 6 — Authoring & Blueprint Library** | ✅ Done | `library.js`, versioning, templates, `swarm init` scaffolder, mature wizard. |
 | **Phase 7 — Observability & Cost** | ✅ Done | Token/cost accounting per run, metrics view in dashboard, budget alerts. |
-| **Phase 8 — Distribution & Onboarding** | 🔲 Not started | Marketplace packaging, quickstart, examples gallery, real documentation. |
+| **Phase 8 — Distribution & Onboarding** | ✅ Done | `plugin.json` manifest, enriched README, three example blueprints (`security-audit`, `content-pipeline`, `incident-response`), `docs/swarm-authoring.md`. |
 | **Phase 9 — Safety & Governance** | 🔲 Not started | Sandboxing, approval gates, audit log, permissions. |
 
 **Where things stand:** The execution stack (Phases 1–4, 6–7) is complete. The
@@ -91,13 +91,20 @@ cost/metrics view in the dashboard. `runtime/metrics.js`.
 
 ---
 
-## Phase 8 — Distribution & Onboarding
+## Phase 8 — Distribution & Onboarding *(done)*
 
 **Goal:** installable, documented, adoptable — by you across every project, and
 by others.
 
-- Package as a proper **Claude Code plugin** (marketplace-installable),
-  quickstart, an **examples gallery**, and real documentation.
+**Shipped:**
+
+- `plugin.json` — Claude Code plugin manifest listing all seven skills; marketplace-installable.
+- Enriched `README.md` — Features section, full blueprint YAML reference, flow syntax table, Phase 2 groups/conditions syntax, dashboard route table, CLI flag reference, and Contributing section.
+- Three polished example blueprints:
+  - `swarms/security-audit.yaml` — parallel vulnerability scan + dependency check → remediation advisor, with `limits:` block
+  - `swarms/content-pipeline.yaml` — 4-stage sequential research → outline → write → edit pipeline
+  - `swarms/incident-response.yaml` — parallel log + metric investigation → conditional escalation/resolution (Phase 2 groups + conditions)
+- `docs/swarm-authoring.md` — comprehensive authoring guide: full YAML field reference, Phase 2 groups/conditions, Phase 2.2 compound conditions (`AND`/`OR`/`NOT`), `limits:` block, structured output contract, and runner-vs-skill guidance.
 
 ---
 
@@ -113,17 +120,14 @@ by others.
 ## Critical Path to Meaningful Daily Use
 
 ```
-Phase 3 ✅ →  Phase 4 ✅ →  Phase 5  →  Phase 8
-(reliable)    (durable)     (unattended) (portable)
+Phase 3 ✅ →  Phase 4 ✅ →  Phase 5 ✅ →  Phase 8 ✅
+(reliable)    (durable)     (unattended)   (portable)
 ```
 
-Phases 2.2 ✅ / 6 ✅ / 7 ✅ / 9 are quality multipliers. In one line:
-**make execution reliable (3 ✅), make runs durable (4 ✅), make it run unattended (5),
-make it installable everywhere (8).**
+Phases 2.2 ✅ / 6 ✅ / 7 ✅ are all shipped. The entire critical path is complete.
 
-**Remaining critical path:** Phase 5 (GitHub Action + notifications) → Phase 8
-(packaging + docs). Phase 9 (safety/governance) is a parallel track needed before
-sharing with others or running agents with real write access.
+**Only Phase 9 remains** (safety/governance — sandboxing, approval gates, audit log).
+Pull it forward before sharing Swarm with others or running agents with real write access.
 
 ---
 
