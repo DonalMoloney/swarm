@@ -57,6 +57,9 @@ function startServer(port) {
     } else if (url.pathname === '/graph.js') {
       serveFile(res, path.join(UI_DIR, 'graph.js'), 'application/javascript');
 
+    } else if (url.pathname === '/graph-layout.js') {
+      serveFile(res, path.join(UI_DIR, 'graph-layout.js'), 'application/javascript');
+
     } else if (url.pathname === '/state') {
       const { events } = readEvents();
       res.writeHead(200, { 'Content-Type': 'application/json' });

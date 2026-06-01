@@ -40,6 +40,10 @@
       <div id="preview-graph-legend" style="font-size:11px;color:#8b949e;margin-top:8px;display:flex;gap:16px;flex-wrap:wrap;">
         <div><span style="display:inline-block;width:8px;height:8px;background:#1f6feb;border-radius:50%;margin-right:4px;"></span>Agent</div>
         <div><span style="display:inline-block;width:8px;height:8px;background:#238636;border-radius:50%;margin-right:4px;"></span>Synthesizer</div>
+        <span>&#x25AD; Group</span>
+        <span>&#x25C7; Condition</span>
+        <span style="color:#3fb950;">&#x2014; true</span>
+        <span style="color:#f85149;">&#x2014; false</span>
       </div>
     </section>
 
@@ -65,6 +69,8 @@
 
 </div>
 
+<script src="graph-layout.js"></script>
+<script src="graph.js"></script>
 <script>
   /**
    * Preview UI Functions
@@ -249,6 +255,20 @@
         parallel: Array.isArray(stage)
       }));
       renderExecutionPlan(stagesData);
+    }
+
+    if (blueprint.execution_graph) {
+      const svg = document.getElementById('preview-graph-svg');
+      if (svg && window.renderExecutionGraph) {
+        window.renderExecutionGraph(blueprint.execution_graph, svg);
+      }
+      // List the graph nodes as a textual plan
+      const nodes = blueprint.execution_graph.stages.map(n =>
+        n.type === 'condition'
+          ? { agents: [{ name: '◇ if ' + n.condition_id + ' → ' + n.true_next + ' / ' + n.false_next }], parallel: false }
+          : { agents: (n.agents || []).map(name => ({ name })), parallel: (n.agents || []).length > 1 }
+      );
+      renderExecutionPlan(nodes);
     }
 
     if (blueprint.validation) {
