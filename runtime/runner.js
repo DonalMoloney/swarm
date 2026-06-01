@@ -105,8 +105,74 @@ async function runAgent({ name, prompt, timeoutMs, maxRetries, model, emit }) {
   return { name, status, summary: contract.summary, contract, text, tokens, costUsd, attempts: attempt, structured };
 }
 
+const { compile } = require('./compiler');
+
+async function runStage(stage, ctx) {
+  const results = await Promise.all(stage.agents.map((name) => {
+    const a = ctx.blueprint.agents[name] || {};
+    const role = a.prompt || a.role || '';
+    const prompt = buildAgentPrompt(role, ctx.task, ctx.contextBlock, ctx.priorOutput);
+    const timeoutMs = num(a.timeout, ctx.limits.agentTimeout) * 1000;
+    const maxRetries = num(a.retries, ctx.limits.agentRetries);
+    ctx.emit({ type: 'agent_start', agent: name, status: 'running', message: 'Starting…' });
+    return runAgent({ name, prompt, timeoutMs, maxRetries, model: ctx.model, emit: ctx.emit })
+      .then((r) => {
+        ctx.emit({
+          type: r.status === 'error' ? 'agent_error' : 'agent_done',
+          agent: name, status: r.status, tokens: r.tokens, cost_usd: r.costUsd,
+          structured: r.structured, message: r.summary,
+        });
+        return r;
+      });
+  }));
+  return results;
+}
+
+async function run(blueprint, task, opts = {}) {
+  const emit = opts.emit || (() => {});
+  const plan = compile(blueprint);
+  if (plan.execution_graph) {
+    throw new Error('Runner handles linear/parallel flows only; this blueprint uses Phase-2 groups/conditions — run it via the /swarm LLM flow.');
+  }
+  const limits = resolveLimits(blueprint, opts);
+  const totals = { tokens: 0, costUsd: 0 };
+  let priorOutput = '';
+  let status = 'done';
+
+  emit({ type: 'swarm_start', agent: blueprint.name, status: 'running', message: task });
+
+  for (const stage of plan.stages) {
+    const results = await runStage(stage, {
+      blueprint, task, contextBlock: opts.contextBlock || '',
+      priorOutput, limits, model: opts.model, emit,
+    });
+    priorOutput = results.map(r => `## ${r.name}\n${r.text}`).join('\n\n');
+    totals.tokens += results.reduce((s, r) => s + r.tokens, 0);
+    totals.costUsd += results.reduce((s, r) => s + r.costUsd, 0);
+    const b = budgetCheck(totals, limits);
+    if (b.exceeded) {
+      emit({ type: 'budget_exceeded', metric: b.metric, value: b.value, limit: b.limit });
+      status = 'aborted';
+      break;
+    }
+  }
+
+  // Save final output + history (best-effort; mirrors skills/swarm.md)
+  try {
+    const fs = require('fs');
+    const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+    const id = `${blueprint.name}-${stamp}`;
+    fs.mkdirSync('swarms/output', { recursive: true });
+    fs.writeFileSync(`swarms/output/${id}.md`, priorOutput, 'utf8');
+    require('./history').append({ id, blueprint: blueprint.name, task, file: `${id}.md`, ts: Date.now() });
+  } catch (e) { /* non-fatal */ }
+
+  emit({ type: 'swarm_done', status, total_tokens: totals.tokens, total_cost_usd: totals.costUsd });
+  return { status, totalTokens: totals.tokens, totalCostUsd: totals.costUsd };
+}
+
 module.exports = {
   buildAgentPrompt, parseCliEnvelope, CONTRACT_SUFFIX,
   shouldRetry, budgetCheck, resolveLimits, DEFAULTS,
-  runAgent,
+  runAgent, runStage, run,
 };

@@ -87,3 +87,61 @@ test('runAgent times out, retries, then falls back', async () => {
   assert.equal(r.structured, false);                   // never got a contract
   assert.equal(r.status, 'error');
 });
+
+const fs = require('node:fs');
+const os = require('node:os');
+const { run } = require('./runner');
+
+test('run executes a linear+parallel blueprint and totals usage', async () => {
+  process.env.SWARM_CLAUDE_BIN = FAKE;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarm-run-'));
+  const cwd = process.cwd();
+  process.chdir(dir);
+  fs.mkdirSync('swarms/output', { recursive: true });
+  try {
+    const blueprint = {
+      name: 'demo',
+      flow: 'a, b → c',
+      agents: { a: { prompt: 'A' }, b: { prompt: 'B' }, c: { prompt: 'C' } },
+    };
+    const events = [];
+    const summary = await run(blueprint, 'the task', { emit: e => events.push(e) });
+    assert.equal(summary.status, 'done');
+    assert.equal(summary.totalTokens, 360);            // 3 agents * 120
+    assert.ok(events.some(e => e.type === 'swarm_done' && e.status === 'done'));
+    assert.equal(events.filter(e => e.type === 'agent_done').length, 3);
+  } finally {
+    process.chdir(cwd);
+  }
+});
+
+test('run rejects Phase-2 (execution_graph) blueprints', async () => {
+  const blueprint = {
+    name: 'cond', flow: 'research → if c1: synth else: fb',
+    groups: { research: { agents: ['s'] }, synth: { agents: ['y'] }, fb: { agents: ['z'] } },
+    conditions: { c1: { type: 'validation', criteria: 'no-errors' } },
+    agents: { s: { prompt: '' }, y: { prompt: '' }, z: { prompt: '' } },
+  };
+  await assert.rejects(() => run(blueprint, 't', {}), /Phase-2|execution graph|groups\/conditions/i);
+});
+
+test('run aborts when the cost budget is exceeded', async () => {
+  process.env.SWARM_CLAUDE_BIN = FAKE;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarm-budget-'));
+  const cwd = process.cwd();
+  process.chdir(dir);
+  fs.mkdirSync('swarms/output', { recursive: true });
+  try {
+    const blueprint = {
+      name: 'demo', flow: 'a → b → c',
+      limits: { max_cost_usd: '0.007' },               // one agent (0.005) ok, two exceeds
+      agents: { a: { prompt: 'A' }, b: { prompt: 'B' }, c: { prompt: 'C' } },
+    };
+    const events = [];
+    const summary = await run(blueprint, 't', { emit: e => events.push(e) });
+    assert.equal(summary.status, 'aborted');
+    assert.ok(events.some(e => e.type === 'budget_exceeded' && e.metric === 'cost_usd'));
+  } finally {
+    process.chdir(cwd);
+  }
+});
