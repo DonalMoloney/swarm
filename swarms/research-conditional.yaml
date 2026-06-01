@@ -1,4 +1,5 @@
 name: research-conditional
+version: "1.0.0"
 description: "Research, then branch to synthesis or fallback based on searcher confidence"
 flow: "research → if high_confidence: synthesis else: fallback"
 

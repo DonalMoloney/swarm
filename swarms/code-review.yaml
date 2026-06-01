@@ -1,4 +1,5 @@
 name: code-review
+version: "1.0.0"
 description: Parallel multi-dimensional code review then consolidated summary
 flow: "bug-hunter, perf-reviewer, security-reviewer → summariser"
 output: markdown

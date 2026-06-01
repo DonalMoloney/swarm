@@ -238,6 +238,7 @@
     <nav id="tabs" style="display:flex;gap:4px;">
       <button id="tab-live"      class="tab active" onclick="showTab('live')">Live</button>
       <button id="tab-history"   class="tab"        onclick="showTab('history')">History</button>
+      <button id="tab-library"   class="tab"        onclick="showTab('library')">Library</button>
       <button id="tab-decompose" class="tab"        onclick="showTab('decompose')">Decompose</button>
     </nav>
   <span class="meta" id="swarm-meta">waiting for swarm…</span>
@@ -276,6 +277,14 @@
     <tbody id="history-body"></tbody>
   </table>
   <pre id="history-output"></pre>
+</div>
+
+<div id="library-panel" style="display:none;flex:1;overflow:auto;padding:12px 16px;">
+  <h2 style="font-size:10px;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Blueprint Library</h2>
+  <div style="display:flex;gap:16px;align-items:flex-start;">
+    <div id="library-list" style="flex:0 0 320px;"></div>
+    <pre id="library-detail" style="flex:1;background:#161b22;border:1px solid #21262d;border-radius:4px;padding:12px;white-space:pre-wrap;color:#8b949e;font-size:11px;display:none;margin:0;"></pre>
+  </div>
 </div>
 
 <div id="decompose-panel" style="display:none;flex:1;overflow:auto;padding:12px 16px;">
@@ -485,14 +494,77 @@
   connect();
 
   function showTab(tab) {
-    ['live', 'history', 'decompose'].forEach(t => {
+    ['live', 'history', 'library', 'decompose'].forEach(t => {
       document.getElementById('tab-' + t).classList.toggle('active', t === tab);
     });
     document.getElementById('bottom').style.display = tab === 'live' ? 'grid' : 'none';
     document.getElementById('history-panel').style.display = tab === 'history' ? 'block' : 'none';
+    document.getElementById('library-panel').style.display = tab === 'library' ? 'block' : 'none';
     document.getElementById('decompose-panel').style.display = tab === 'decompose' ? 'block' : 'none';
     if (tab === 'history') loadHistory();
+    if (tab === 'library') loadLibrary();
     if (tab === 'decompose') loadDecompose();
+  }
+
+  function loadLibrary() {
+    fetch('/library')
+      .then(r => r.json())
+      .then(blueprints => {
+        const list = document.getElementById('library-list');
+        const detail = document.getElementById('library-detail');
+        detail.style.display = 'none';
+        while (list.firstChild) list.removeChild(list.firstChild);
+
+        if (!Array.isArray(blueprints) || !blueprints.length) {
+          const msg = document.createElement('p');
+          msg.textContent = 'No blueprints found in swarms/.';
+          msg.style.color = '#484f58';
+          list.appendChild(msg);
+          return;
+        }
+
+        blueprints.forEach(bp => {
+          const card = document.createElement('div');
+          card.style.cssText = 'border:1px solid #21262d;border-radius:4px;margin-bottom:8px;padding:10px 12px;cursor:pointer;background:#161b22;';
+          card.addEventListener('mouseenter', () => { card.style.borderColor = '#58a6ff66'; });
+          card.addEventListener('mouseleave', () => { card.style.borderColor = '#21262d'; });
+
+          const titleRow = document.createElement('div');
+          titleRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;';
+          const name = document.createElement('span');
+          name.style.cssText = 'color:#e6edf3;font-weight:600;';
+          name.textContent = bp.name;
+          const version = document.createElement('span');
+          version.style.cssText = 'color:#3fb950;font-size:10px;background:#1c2433;border:1px solid #2a3346;border-radius:3px;padding:1px 6px;';
+          version.textContent = 'v' + bp.version;
+          titleRow.appendChild(name);
+          titleRow.appendChild(version);
+
+          const desc = document.createElement('div');
+          desc.style.cssText = 'color:#8b949e;font-size:11px;margin-top:4px;';
+          desc.textContent = bp.description || '(no description)';
+
+          const flow = document.createElement('div');
+          flow.style.cssText = 'color:#58a6ff;font-size:10px;margin-top:4px;font-family:inherit;';
+          flow.textContent = bp.flow || '(no flow)';
+
+          card.appendChild(titleRow);
+          card.appendChild(desc);
+          card.appendChild(flow);
+          card.addEventListener('click', () => openBlueprint(bp.name, card, list));
+          list.appendChild(card);
+        });
+      });
+  }
+
+  function openBlueprint(name, activeCard, list) {
+    Array.from(list.children).forEach(c => { c.style.background = '#161b22'; });
+    activeCard.style.background = '#1f2937';
+    const detail = document.getElementById('library-detail');
+    fetch('/blueprint/' + encodeURIComponent(name))
+      .then(r => r.ok ? r.text() : Promise.reject())
+      .then(text => { detail.textContent = text; detail.style.display = 'block'; })
+      .catch(() => { detail.textContent = 'Blueprint source not found: ' + name; detail.style.display = 'block'; });
   }
 
   function loadHistory() {

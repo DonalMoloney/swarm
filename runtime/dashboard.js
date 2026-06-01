@@ -112,6 +112,34 @@ function startServer(port) {
         }
       });
 
+    } else if (url.pathname === '/library') {
+      let data = '[]';
+      try {
+        const library = require('./library.js');
+        data = JSON.stringify(library.list());
+      } catch (e) {
+        data = JSON.stringify({ error: e.message });
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(data);
+
+    } else if (url.pathname.startsWith('/blueprint/')) {
+      const name = decodeURIComponent(url.pathname.slice('/blueprint/'.length));
+      if (!/^[a-zA-Z0-9_][a-zA-Z0-9_-]*$/.test(name)) {
+        res.writeHead(400);
+        res.end('invalid blueprint name');
+        return;
+      }
+      const filePath = path.join(process.cwd(), 'swarms', `${name}.yaml`);
+      try {
+        const data = fs.readFileSync(filePath, 'utf8');
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end(data);
+      } catch {
+        res.writeHead(404);
+        res.end('not found');
+      }
+
     } else if (url.pathname === '/history') {
       const indexFile = path.join(process.cwd(), 'swarms', 'output', 'index.json');
       let data = '[]';

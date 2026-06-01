@@ -1,4 +1,5 @@
 name: debug
+version: "1.0.0"
 description: Sequential reproduce → diagnose → fix → verify pipeline
 flow: "reproducer → diagnoser → fixer → verifier"
 output: markdown
