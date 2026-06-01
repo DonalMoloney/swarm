@@ -14,6 +14,7 @@ grounded in what already exists in the codebase versus what is genuinely missing
 |-------|--------|---------|
 | **Phase 1 — Dashboard & Authoring UI** | ✅ Done | Live dashboard (topology, agents, log, history tabs), wizard, preview. Plus the polish/zoom/larger-node pass. |
 | **Phase 2 — Hierarchical Topology & Conditional Branching** | 🎨 Designed | Groups, conditions, branching. MVP (2.1) + deferred (2.2). See `specs/2026-05-31-swarm-phase2-extend-capabilities-design.md`. |
+| **Phase 8 — Distribution & Onboarding** | ✅ Done | `plugin.json` manifest, enriched README (features, blueprint reference, flow table, dashboard routes, CLI flags, contributing), three polished example blueprints (`security-audit`, `content-pipeline`, `incident-response`), and a comprehensive `docs/swarm-authoring.md` covering all YAML fields, compound conditions, limits block, structured output contract, and runner vs skill guidance. |
 
 **The gap:** P1 and P2 are about *describing and visualizing* swarms. Almost
 nothing yet makes the **execution** itself reliable or durable. That is the
@@ -98,13 +99,20 @@ The Phase 2 spec explicitly punts these; pick them up once 2.1 lands.
 
 ---
 
-## Phase 8 — Distribution & Onboarding
+## Phase 8 — Distribution & Onboarding *(done)*
 
 **Goal:** installable, documented, adoptable — by you across every project, and
 by others.
 
-- Package as a proper **Claude Code plugin** (marketplace-installable),
-  quickstart, an **examples gallery**, and real documentation.
+**Shipped:**
+
+- `plugin.json` — Claude Code plugin manifest listing all seven skills; marketplace-installable.
+- Enriched `README.md` — Features section, full blueprint YAML reference, flow syntax table, Phase 2 groups/conditions syntax, dashboard route table, CLI flag reference, and Contributing section.
+- Three polished example blueprints:
+  - `swarms/security-audit.yaml` — parallel vulnerability scan + dependency check → remediation advisor, with `limits:` block
+  - `swarms/content-pipeline.yaml` — 4-stage sequential research → outline → write → edit pipeline
+  - `swarms/incident-response.yaml` — parallel log + metric investigation → conditional escalation/resolution (Phase 2 groups + conditions)
+- `docs/swarm-authoring.md` — comprehensive authoring guide: full YAML field reference, Phase 2 groups/conditions, Phase 2.2 compound conditions (`AND`/`OR`/`NOT`), `limits:` block, structured output contract, and runner-vs-skill guidance.
 
 ---
 
