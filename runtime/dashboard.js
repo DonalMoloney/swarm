@@ -119,6 +119,13 @@ function startServer(port) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(data);
 
+    } else if (url.pathname.startsWith('/run/') && url.pathname.endsWith('/events')) {
+      const id = decodeURIComponent(url.pathname.slice('/run/'.length, -'/events'.length));
+      let events = [];
+      try { events = require('./archive').loadRunEvents(id); } catch {}
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(events));
+
     } else if (url.pathname.startsWith('/output/')) {
       const filename = decodeURIComponent(url.pathname.slice('/output/'.length));
       const filePath = path.join(process.cwd(), 'swarms', 'output', path.basename(filename));
