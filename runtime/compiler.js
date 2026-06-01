@@ -37,7 +37,9 @@ function validateBlueprint(blueprint) {
     errors.push('Missing required field: agents (must be an object)');
   }
 
-  if (blueprint.flow && blueprint.agents) {
+  const usesPhase2 = !!blueprint.groups || /\bif\s/.test(blueprint.flow || '');
+
+  if (blueprint.flow && blueprint.agents && !usesPhase2) {
     const stages = parseFlow(blueprint.flow);
     const allAgentNames = stages.flatMap(s => s.agents);
     const defined = Object.keys(blueprint.agents);
@@ -68,6 +70,38 @@ function validateBlueprint(blueprint) {
       if (invalid.length) {
         errors.push(`Unknown actions: ${invalid.join(', ')} (valid: ${VALID_ACTIONS.join(', ')})`);
       }
+    }
+  }
+
+  if (blueprint.groups !== undefined) {
+    if (typeof blueprint.groups !== 'object' || Array.isArray(blueprint.groups)) {
+      errors.push('groups must be an object');
+    } else {
+      const definedAgents = blueprint.agents ? Object.keys(blueprint.agents) : [];
+      for (const [gname, g] of Object.entries(blueprint.groups)) {
+        if (!Array.isArray(g.agents) || g.agents.length === 0) {
+          errors.push(`Group "${gname}" must list at least one agent`);
+          continue;
+        }
+        const missing = g.agents.filter(a => !definedAgents.includes(a));
+        if (missing.length) {
+          errors.push(`Group "${gname}" references undefined agents: ${missing.join(', ')}`);
+        }
+      }
+    }
+  }
+
+  // Flat (non-conditional) group flows: every token must be a defined group or agent.
+  // Conditional (`if`) flows are validated separately.
+  if (blueprint.flow && blueprint.agents && blueprint.groups &&
+      typeof blueprint.groups === 'object' && !Array.isArray(blueprint.groups) &&
+      !/\bif\s/.test(blueprint.flow)) {
+    const allTokens = parseFlow(blueprint.flow).flatMap(s => s.agents);
+    const definedGroups = Object.keys(blueprint.groups);
+    const definedAgents = Object.keys(blueprint.agents);
+    const unknown = allTokens.filter(t => !definedGroups.includes(t) && !definedAgents.includes(t));
+    if (unknown.length) {
+      errors.push(`Flow references undefined groups or agents: ${unknown.join(', ')}`);
     }
   }
 
