@@ -2,3 +2,4 @@
 swarms/output/*.md
 .superpowers/
 node_modules/
+mock-dashboard.html
