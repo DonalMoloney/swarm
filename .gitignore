@@ -6,4 +6,4 @@ swarms/audit.jsonl
 .superpowers/
 node_modules/
 mock-dashboard.html
-slides/
+slides/*.pptx
