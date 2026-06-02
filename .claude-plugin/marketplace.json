@@ -10,7 +10,7 @@
       "name": "swarm",
       "description": "Orchestrate parallel and sequential AI agent swarms from YAML blueprints, with a live web dashboard. Provides /swarm and six companion slash commands.",
       "version": "1.0.0",
-      "source": "./",
+      "source": { "source": "github", "repo": "DonalMoloney/swarm" },
       "author": {
         "name": "Donal Moloney"
       },
