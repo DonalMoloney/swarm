@@ -26,11 +26,9 @@ node runtime/events.js agent_start my-agent running "Starting analysis..."
 node runtime/events.js clear   # reset event stream
 ```
 
-**Install the skill:**
-```bash
-cp skills/swarm.md ~/.claude/skills/          # global
-cp skills/swarm.md .claude/skills/            # project-level
-```
+**Install as a plugin:**
+
+The repo is a Claude Code plugin (manifest at `.claude-plugin/plugin.json`). Install via a marketplace, or symlink the repo into a discovered plugins dir. The seven `/swarm*` slash commands live in `commands/` and are auto-discovered.
 
 **Run a swarm:**
 ```
@@ -44,7 +42,7 @@ cp skills/swarm.md .claude/skills/            # project-level
 ## Architecture
 
 ```
-skills/swarm.md          ← Claude Code slash command (entry point)
+commands/swarm.md        ← Claude Code slash command (entry point)
        ↓ reads
 swarms/*.yaml            ← blueprint definitions (flow + agent prompts)
        ↓ compiled by

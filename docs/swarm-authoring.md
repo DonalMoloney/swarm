@@ -359,9 +359,9 @@ This checks:
 ## See Also
 
 - [Swarm Quick Start](/docs/swarm-quickstart.md) — Get started fast
-- [/swarm new](/skills/swarm-new.md) — Auto-generate blueprints
-- [/swarm run](/skills/swarm.md) — Execute blueprints
-- [/swarm preview](/skills/swarm-preview.md) — Validate before running
+- [/swarm new](/commands/swarm-new.md) — Auto-generate blueprints
+- [/swarm run](/commands/swarm.md) — Execute blueprints
+- [/swarm preview](/commands/swarm-preview.md) — Validate before running
 
 ## Conditional Topology (Phase 2)
 

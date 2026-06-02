@@ -1,0 +1,11 @@
+{
+  "name": "swarm",
+  "version": "1.0.0",
+  "description": "Orchestrate parallel and sequential AI agent swarms from YAML blueprints, with a live web dashboard.",
+  "author": { "name": "Donal Moloney" },
+  "license": "MIT",
+  "commands": ["./commands"],
+  "repository": "https://github.com/donalmoloney/swarm",
+  "homepage": "https://github.com/donalmoloney/swarm#readme",
+  "keywords": ["multi-agent", "swarm", "orchestration", "claude-code", "dashboard", "yaml"]
+}

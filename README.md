@@ -26,17 +26,9 @@ The dashboard auto-starts at **http://localhost:7700** showing a live topology g
 
 ## Installation
 
-Copy the skills you want into your Claude Code skills directory:
+Swarm is a Claude Code **plugin** (manifest at `.claude-plugin/plugin.json`). Install it the same way as any plugin — add the repo through a plugin marketplace, or clone it into a directory Claude Code discovers plugins from. The seven `/swarm*` slash commands in `commands/` are auto-discovered on load.
 
-```bash
-# Global (available in all projects)
-cp skills/*.md ~/.claude/skills/
-
-# Project-local
-cp skills/*.md .claude/skills/
-```
-
-No npm install needed — runtime uses only Node.js built-ins.
+No npm install needed — the runtime uses only Node.js built-ins (Node 18+).
 
 ## Commands
 
@@ -134,7 +126,7 @@ See [`docs/swarm-authoring.md`](docs/swarm-authoring.md) for the full blueprint 
 ```
 /swarm research "task"
        ↓
-skills/swarm.md          ← Claude Code skill (entry point)
+commands/swarm.md        ← Claude Code slash command (entry point)
        ↓ reads
 swarms/research.yaml     ← blueprint: agents + flow string
        ↓ compiles
@@ -153,13 +145,13 @@ ui/index.html            ← topology graph + task tree + live logs
 
 | Path | Purpose |
 |------|---------|
-| `skills/swarm.md` | `/swarm` slash command |
-| `skills/swarm-init.md` | Interactive blueprint wizard |
-| `skills/swarm-new.md` | Generate blueprint from description |
-| `skills/swarm-preview.md` | Preview + validate before running |
-| `skills/swarm-history.md` | Browse past run outputs |
-| `skills/swarm-decompose.md` | Decompose large goals into swarm sequences |
-| `skills/swarm-scaffold.md` | Scaffold or validate a blueprint |
+| `commands/swarm.md` | `/swarm` slash command |
+| `commands/swarm-init.md` | Interactive blueprint wizard |
+| `commands/swarm-new.md` | Generate blueprint from description |
+| `commands/swarm-preview.md` | Preview + validate before running |
+| `commands/swarm-history.md` | Browse past run outputs |
+| `commands/swarm-decompose.md` | Decompose large goals into swarm sequences |
+| `commands/swarm-scaffold.md` | Scaffold or validate a blueprint |
 | `swarms/*.yaml` | Blueprint definitions |
 | `runtime/compiler.js` | Parses flow string → execution plan |
 | `runtime/dashboard.js` | HTTP + SSE server for live UI |

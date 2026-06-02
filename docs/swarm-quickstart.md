@@ -96,9 +96,9 @@ Now that you understand the basics:
 
 ## Links
 
-- [/swarm run](/skills/swarm.md) — Full reference on running swarms
-- [/swarm new](/skills/swarm-new.md) — Quick suggest mode
-- [/swarm new --wizard](/skills/swarm-init.md) — Interactive wizard
-- [/swarm preview](/skills/swarm-preview.md) — Preview before running
+- [/swarm run](/commands/swarm.md) — Full reference on running swarms
+- [/swarm new](/commands/swarm-new.md) — Quick suggest mode
+- [/swarm new --wizard](/commands/swarm-init.md) — Interactive wizard
+- [/swarm preview](/commands/swarm-preview.md) — Preview before running
 - [Blueprint Authoring Guide](/docs/swarm-authoring.md) — Deep dive on YAML and flow syntax
-- [Swarm History](/skills/swarm-history.md) — View past runs and checkpoints
+- [Swarm History](/commands/swarm-history.md) — View past runs and checkpoints
