@@ -11,7 +11,7 @@ A `/swarm` slash command that reads YAML blueprint files, compiles them into par
 ```
 User: /swarm research "compare top AI frameworks"
          ↓
-skills/swarm.md        ← Claude Code skill (entry point)
+commands/swarm.md        ← Claude Code skill (entry point)
          ↓ reads
 swarms/research.yaml   ← blueprint: agents + flow string
          ↓ compiles
@@ -39,7 +39,7 @@ ui/index.html          ← topology graph + task tree + live logs
 
 | Path | Purpose |
 |------|---------|
-| `skills/swarm.md` | `/swarm` slash command — reads blueprint, runs topology |
+| `commands/swarm.md` | `/swarm` slash command — reads blueprint, runs topology |
 | `swarms/*.yaml` | Blueprint definitions |
 | `runtime/compiler.js` | Parses flow string → execution stages |
 | `runtime/dashboard.js` | HTTP + SSE server for live UI |

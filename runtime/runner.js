@@ -66,10 +66,30 @@ const { spawn } = require('child_process');
 
 function claudeBin() { return process.env.SWARM_CLAUDE_BIN || 'claude'; }
 
-function runAgentOnce(prompt, { timeoutMs, model }) {
+/**
+ * Resolve allowed tools for a specific agent, merging blueprint-level permissions
+ * with per-agent overrides. Returns null if no restriction is set.
+ */
+function resolveAllowedTools(agentDef, blueprint) {
+  // Per-agent override takes precedence
+  if (agentDef && Array.isArray(agentDef.allowed_tools) && agentDef.allowed_tools.length > 0) {
+    return agentDef.allowed_tools;
+  }
+  // Blueprint-level permissions
+  const perms = blueprint && blueprint.permissions;
+  if (perms && Array.isArray(perms.allowed_tools) && perms.allowed_tools.length > 0) {
+    return perms.allowed_tools;
+  }
+  return null;
+}
+
+function runAgentOnce(prompt, { timeoutMs, model, allowedTools }) {
   return new Promise((resolve) => {
     const args = ['-p', prompt, '--output-format', 'json'];
     if (model) args.push('--model', model);
+    if (allowedTools && allowedTools.length > 0) {
+      args.push('--allowedTools', allowedTools.join(','));
+    }
     const child = spawn(claudeBin(), args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '', stderr = '', timedOut = false;
     const timer = setTimeout(() => {
@@ -84,13 +104,13 @@ function runAgentOnce(prompt, { timeoutMs, model }) {
   });
 }
 
-async function runAgent({ name, prompt, timeoutMs, maxRetries, model, emit }) {
+async function runAgent({ name, prompt, timeoutMs, maxRetries, model, allowedTools, emit }) {
   const noop = () => {};
   const log = emit || noop;
   let attempt = 0, text = '', tokens = 0, costUsd = 0, structured = false, contract = null, timedOut = false, exitCode = 0;
   while (true) {
     attempt++;
-    const res = await runAgentOnce(prompt, { timeoutMs, model });
+    const res = await runAgentOnce(prompt, { timeoutMs, model, allowedTools });
     timedOut = res.timedOut; exitCode = res.exitCode;
     const env = parseCliEnvelope(res.stdout);
     if (env) { text = env.text; tokens += env.tokens; costUsd += env.costUsd; }
@@ -108,15 +128,60 @@ async function runAgent({ name, prompt, timeoutMs, maxRetries, model, emit }) {
 const { compile } = require('./compiler');
 const { evaluateCondition } = require('./evaluator');
 
+/**
+ * Prompt the user for approval before running a sensitive agent.
+ * Returns true if approved, false if denied.
+ * If ctx.ci is true, auto-denies with a CI warning.
+ */
+function requestApproval({ name, blueprint, task, prompt }, ctx) {
+  if (ctx.ci) {
+    process.stderr.write(`::warning::Approval required but running in CI — agent skipped: ${name}\n`);
+    return false;
+  }
+  const preview = (prompt || '').slice(0, 200);
+  process.stdout.write(
+    `\n[swarm] Agent "${name}" requires approval.\n` +
+    `  Blueprint: ${blueprint}\n` +
+    `  Task: ${task}\n` +
+    `  Prompt preview: ${preview}\n` +
+    `Proceed? [y/N]: `
+  );
+  let answer = '';
+  try {
+    // Read one line synchronously from stdin
+    const fs = require('fs');
+    // Read up to 256 bytes — enough for "yes\n"
+    const buf = Buffer.alloc(256);
+    const n = fs.readSync(0, buf, 0, buf.length, null);
+    answer = buf.slice(0, n).toString('utf8').trim();
+  } catch {
+    answer = '';
+  }
+  return answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes';
+}
+
 async function runStage(stage, ctx) {
-  const results = await Promise.all(stage.agents.map((name) => {
+  const results = await Promise.all(stage.agents.map(async (name) => {
     const a = ctx.blueprint.agents[name] || {};
     const role = a.prompt || a.role || '';
     const prompt = buildAgentPrompt(role, ctx.task, ctx.contextBlock, ctx.priorOutput);
     const timeoutMs = num(a.timeout, ctx.limits.agentTimeout) * 1000;
     const maxRetries = num(a.retries, ctx.limits.agentRetries);
+    const allowedTools = resolveAllowedTools(a, ctx.blueprint);
+
+    // Approval gate
+    if (a.requires_approval) {
+      ctx.emit({ type: 'agent_approval_requested', agent: name, blueprint: ctx.blueprint.name, task: ctx.task });
+      const approved = requestApproval({ name, blueprint: ctx.blueprint.name, task: ctx.task, prompt }, ctx);
+      if (!approved) {
+        const r = { name, status: 'error', summary: 'approval_denied', contract: null, text: '', tokens: 0, costUsd: 0, attempts: 0, structured: false };
+        ctx.emit({ type: 'agent_error', agent: name, status: 'error', reason: 'approval_denied', message: 'Agent skipped: approval denied' });
+        return r;
+      }
+    }
+
     ctx.emit({ type: 'agent_start', agent: name, status: 'running', message: 'Starting…' });
-    return runAgent({ name, prompt, timeoutMs, maxRetries, model: ctx.model, emit: ctx.emit })
+    return runAgent({ name, prompt, timeoutMs, maxRetries, model: ctx.model, allowedTools, emit: ctx.emit })
       .then((r) => {
         ctx.emit({
           type: r.status === 'error' ? 'agent_error' : 'agent_done',
@@ -203,12 +268,13 @@ async function run(blueprint, task, opts = {}) {
   const emit = opts.emit || (() => {});
   const plan = compile(blueprint);
   const limits = resolveLimits(blueprint, opts);
+  const ci = !!opts.ci;
 
   // Collect every emitted event so the run can be archived for replay
   const collected = [];
   const record = (e) => { collected.push(e); emit(e); };
 
-  const baseCtx = { task, contextBlock: opts.contextBlock || '', limits, model: opts.model, emit: record };
+  const baseCtx = { task, contextBlock: opts.contextBlock || '', limits, model: opts.model, ci, emit: record };
 
   record({
     type: 'swarm_start', agent: blueprint.name, status: 'running', message: task,
@@ -239,10 +305,10 @@ async function run(blueprint, task, opts = {}) {
   record({ type: 'swarm_done', status, total_tokens: totals.tokens, total_cost_usd: totals.costUsd });
 
   // Persist the run durably: events archive + enriched index record
+  const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+  const id = `${blueprint.name}-${stamp}`;
   try {
     const fs = require('fs');
-    const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
-    const id = `${blueprint.name}-${stamp}`;
     fs.mkdirSync('swarms/output', { recursive: true });
     fs.writeFileSync(`swarms/output/${id}.md`, priorOutput, 'utf8');
     require('./archive').archiveRun({
@@ -254,13 +320,59 @@ async function run(blueprint, task, opts = {}) {
     });
   } catch (e) { /* non-fatal */ }
 
+  // Append to persistent audit log (non-fatal)
+  try {
+    require('./audit').appendAuditEntry({
+      id,
+      blueprint: blueprint.name,
+      task,
+      status,
+      agentCount: Object.keys(blueprint.agents).length,
+      totalTokens: totals.tokens,
+      totalCostUsd: totals.costUsd,
+      ts: Date.now(),
+    });
+  } catch (e) { /* non-fatal */ }
+
   return { status, totalTokens: totals.tokens, totalCostUsd: totals.costUsd };
+}
+
+// CI-mode log formatters (GitHub Actions annotation syntax).
+// Exported for testing; also used by the CLI entry point when --ci is passed.
+function formatCiEvent(e) {
+  const type = e.type;
+  if (type === 'agent_error') {
+    const msg = e.message || e.status || 'agent failed';
+    return `::error title=Agent ${e.agent}::${msg}`;
+  }
+  if (type === 'budget_exceeded') {
+    return `::warning title=Budget exceeded::${e.metric} ${e.value} > ${e.limit}`;
+  }
+  if (type === 'swarm_done') {
+    if (e.status === 'done') {
+      const tokens = e.total_tokens != null ? e.total_tokens : '?';
+      const cost = typeof e.total_cost_usd === 'number' ? `$${e.total_cost_usd.toFixed(4)}` : '$?';
+      return `::notice title=Swarm complete::${tokens} tokens, ${cost}`;
+    }
+    return `::warning title=Swarm ended::status=${e.status}`;
+  }
+  if (type === 'agent_start') {
+    return `::group::Agent ${e.agent}`;
+  }
+  if (type === 'agent_done') {
+    return `::endgroup::`;
+  }
+  // Default: plain log line
+  const tag = e.agent || e.type;
+  return `[${tag}] ${e.message || e.status || e.type}`;
 }
 
 module.exports = {
   buildAgentPrompt, parseCliEnvelope, CONTRACT_SUFFIX,
   shouldRetry, budgetCheck, resolveLimits, DEFAULTS,
+  resolveAllowedTools,
   runAgent, runStage, runGraph, run,
+  formatCiEvent,
 };
 
 if (require.main === module) {
@@ -271,23 +383,91 @@ if (require.main === module) {
 
   const [, , bpPath, task, ...rest] = process.argv;
   if (!bpPath || !task) {
-    console.error('Usage: node runtime/runner.js <blueprint.yaml> "<task>" [--max-cost N] [--timeout S] [--model NAME]');
+    console.error('Usage: node runtime/runner.js <blueprint.yaml> "<task>" [--max-cost N] [--timeout S] [--model NAME] [--ci] [--notify-slack <url>] [--notify-pr <repo> <pr-number>]');
     process.exit(1);
   }
+
   const opts = {};
+  let ciMode = false;
+  let notifySlack = null;
+  let notifyPrRepo = null;
+  let notifyPrNumber = null;
+
   for (let i = 0; i < rest.length; i++) {
     if (rest[i] === '--max-cost') opts.maxCost = rest[++i];
     else if (rest[i] === '--timeout') opts.timeout = rest[++i];
     else if (rest[i] === '--model') opts.model = rest[++i];
+    else if (rest[i] === '--ci') { ciMode = true; opts.ci = true; }
+    else if (rest[i] === '--notify-slack') notifySlack = rest[++i];
+    else if (rest[i] === '--notify-pr') { notifyPrRepo = rest[++i]; notifyPrNumber = rest[++i]; }
   }
 
+  // Also pick up notify targets from environment variables (set by GitHub Actions).
+  if (!notifySlack && process.env.SLACK_WEBHOOK_URL) notifySlack = process.env.SLACK_WEBHOOK_URL;
+  if (!notifyPrRepo && process.env.SWARM_NOTIFY_REPO) notifyPrRepo = process.env.SWARM_NOTIFY_REPO;
+  if (!notifyPrNumber && process.env.SWARM_NOTIFY_PR) notifyPrNumber = process.env.SWARM_NOTIFY_PR;
+
   const { appendEvent } = require('./events');
-  opts.emit = (e) => { appendEvent(e); const tag = e.agent || e.type; console.log(`[${tag}] ${e.message || e.status || e.type}`); };
+  opts.emit = (e) => {
+    appendEvent(e);
+    if (ciMode) {
+      const line = formatCiEvent(e);
+      if (line) process.stdout.write(line + '\n');
+    } else {
+      const tag = e.agent || e.type;
+      console.log(`[${tag}] ${e.message || e.status || e.type}`);
+    }
+  };
 
   let bp = yaml.parse(fs.readFileSync(path.resolve(bpPath), 'utf8'));
   bp = resolveExtends(bp, (name) => yaml.parse(fs.readFileSync(path.resolve(path.dirname(bpPath), '..', `${name}.yaml`), 'utf8')));
 
+  const blueprintName = bp.name || path.basename(bpPath, '.yaml');
+
   run(bp, task, opts)
-    .then((s) => { console.log(`\n✓ ${s.status} — ${s.totalTokens} tokens, $${s.totalCostUsd.toFixed(4)}`); process.exit(s.status === 'done' ? 0 : 1); })
+    .then(async (s) => {
+      if (ciMode) {
+        const cost = `$${s.totalCostUsd.toFixed(4)}`;
+        console.log(`::notice title=Run summary::${s.status} — ${s.totalTokens} tokens, ${cost}`);
+        // Write to GitHub Actions step summary if available
+        if (process.env.GITHUB_STEP_SUMMARY) {
+          const { formatGithubComment } = require('./notify');
+          const summary = formatGithubComment({
+            blueprint: blueprintName,
+            task,
+            status: s.status,
+            totalTokens: s.totalTokens,
+            totalCostUsd: s.totalCostUsd,
+            runUrl: process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
+              ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
+              : undefined,
+          });
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary + '\n', 'utf8');
+        }
+      } else {
+        console.log(`\n✓ ${s.status} — ${s.totalTokens} tokens, $${s.totalCostUsd.toFixed(4)}`);
+      }
+
+      // Send notifications if configured
+      const notifyOpts = {};
+      if (process.env.GITHUB_TOKEN) notifyOpts.githubToken = process.env.GITHUB_TOKEN;
+      if (notifyPrRepo) notifyOpts.githubRepo = notifyPrRepo;
+      if (notifyPrNumber) notifyOpts.prNumber = notifyPrNumber;
+      if (notifySlack) notifyOpts.slackWebhook = notifySlack;
+
+      const hasAnyNotify = !!(notifySlack || (notifyPrRepo && notifyPrNumber));
+      if (hasAnyNotify) {
+        const { notify } = require('./notify');
+        await notify({
+          blueprint: blueprintName,
+          task,
+          status: s.status,
+          totalTokens: s.totalTokens,
+          totalCostUsd: s.totalCostUsd,
+        }, notifyOpts);
+      }
+
+      process.exit(s.status === 'done' ? 0 : 1);
+    })
     .catch((err) => { console.error(err.message); process.exit(1); });
 }

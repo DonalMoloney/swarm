@@ -46,6 +46,9 @@ function parse(text) {
       } else if (k === 'limits' && !v) {
         result.limits = {};
         section = 'limits';
+      } else if (k === 'permissions' && !v) {
+        result.permissions = {};
+        section = 'permissions';
       } else if (v) {
         result[k] = v.startsWith('[') ? parseInlineArray(v) : stripQuotes(v);
       }
@@ -55,6 +58,13 @@ function parse(text) {
         const lk = content.slice(0, colonIdx).trim();
         const lv = content.slice(colonIdx + 1).trim();
         result.limits[lk] = stripQuotes(lv);
+      }
+    } else if (section === 'permissions' && indent === 2) {
+      const colonIdx = content.indexOf(':');
+      if (colonIdx !== -1) {
+        const pk = content.slice(0, colonIdx).trim();
+        const pv = content.slice(colonIdx + 1).trim();
+        result.permissions[pk] = pv.startsWith('[') ? parseInlineArray(pv) : stripQuotes(pv);
       }
     } else if (section && indent === 2) {
       currentKey = content.replace(/:$/, '').trim();

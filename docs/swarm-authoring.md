@@ -359,9 +359,9 @@ This checks:
 ## See Also
 
 - [Swarm Quick Start](/docs/swarm-quickstart.md) — Get started fast
-- [/swarm new](/skills/swarm-new.md) — Auto-generate blueprints
-- [/swarm run](/skills/swarm.md) — Execute blueprints
-- [/swarm preview](/skills/swarm-preview.md) — Validate before running
+- [/swarm new](/commands/swarm-new.md) — Auto-generate blueprints
+- [/swarm run](/commands/swarm.md) — Execute blueprints
+- [/swarm preview](/commands/swarm-preview.md) — Validate before running
 
 ## Conditional Topology (Phase 2)
 
@@ -379,3 +379,234 @@ graph now. Live *evaluation* of conditions during a run is a later phase.
 The dry-run preview visualizes Phase-2 blueprints: groups render as boxes,
 conditions as diamonds, and branches as green (true) / red (false) edges.
 The wizard builder can author `groups` and `conditions` programmatically.
+
+### Phase 2 Full YAML Reference
+
+```yaml
+name: my-conditional-swarm
+description: "Branches on agent output"
+flow: "research → if high_confidence: synthesis else: fallback"
+
+groups:
+  research:
+    description: "Parallel research agents"   # optional
+    agents: [searcher, analyst]               # required
+  synthesis:
+    agents: [synthesizer]
+  fallback:
+    agents: [error_handler]
+
+conditions:
+  high_confidence:
+    type: agent_output      # check a field in a named agent's JSON output
+    source: searcher        # agent whose output is inspected
+    check: confidence       # JSON field name in that agent's output
+    threshold: "> 0.8"      # comparison: >, <, >=, <=, ==, !=
+
+agents:
+  searcher:
+    prompt: "Search and return JSON with a confidence field."
+  analyst:
+    prompt: "Analyse and return findings."
+  synthesizer:
+    prompt: "Synthesize confirmed findings."
+  error_handler:
+    prompt: "Report what is missing and suggest next steps."
+```
+
+Condition `threshold` operators: `>`, `<`, `>=`, `<=`, `==`, `!=`.  
+String comparison: `== "success"`, `!= "error"`.
+
+Validation conditions:
+
+```yaml
+conditions:
+  clean:
+    type: validation
+    criteria: no-errors     # no-errors | no-warnings | all-pass
+```
+
+---
+
+## Compound Conditions (Phase 2.2)
+
+Conditions can be combined with boolean operators using `type: compound`.
+
+| Operator | Operands | Semantics |
+|----------|----------|-----------|
+| `AND` | 2 or more | All operands must be true |
+| `OR` | 2 or more | At least one operand must be true |
+| `NOT` | exactly 1 | Negates the operand |
+
+Operands reference other condition names (including other compound conditions, nested arbitrarily). Cycles are rejected at validation time.
+
+```yaml
+conditions:
+  high_confidence:
+    type: agent_output
+    source: searcher
+    check: confidence
+    threshold: "> 0.8"
+  relevant_result:
+    type: agent_output
+    source: analyst
+    check: relevance
+    threshold: "> 0.6"
+  clean_validation:
+    type: validation
+    criteria: no-errors
+
+  # Both confidence AND relevance must pass
+  both_signals:
+    type: compound
+    operator: AND
+    operands: [high_confidence, relevant_result]
+
+  # Validation must NOT have failed
+  not_failed:
+    type: compound
+    operator: NOT
+    operands: [clean_validation]
+
+  # (high_confidence AND relevant_result) OR (NOT failed)
+  # If this falls through to the else branch, retry the pre-branch stage once
+  ready_to_synthesize:
+    type: compound
+    operator: OR
+    operands: [both_signals, not_failed]
+    retry_on_fallback: true   # loop back to the investigation stage and retry
+```
+
+`retry_on_fallback: true` — after the false (else) branch completes, execution
+loops back to the stage immediately before the condition branch and tries again.
+
+See `swarms/compound-demo.yaml` for a full worked example.
+
+---
+
+## Limits Block (Phase 3)
+
+Add a `limits:` block to cap resources per run:
+
+```yaml
+limits:
+  agent_timeout: 300    # seconds per agent attempt before it is killed
+  agent_retries: 1      # how many times to retry a timed-out or errored agent
+  max_cost_usd: 1.00    # per-run budget in USD; run aborts gracefully if exceeded
+  max_tokens: 200000    # total token budget across all agents in the run
+```
+
+All fields are optional. CLI flags `--max-cost`, `--timeout` override the blueprint values.
+
+Per-agent overrides are not yet supported; the limits block applies to every
+agent in the run equally.
+
+---
+
+## Structured Output Contract
+
+Agents should end their response with a fenced JSON block so that downstream
+pipeline agents and condition evaluators can parse fields reliably:
+
+````
+```json
+{
+  "status": "success",
+  "summary": "One-sentence summary of what was done.",
+  "confidence": 0.92,
+  "relevant": true
+}
+```
+````
+
+Required fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | `"success"` \| `"partial"` \| `"error"` | Outcome of this agent's work |
+| `summary` | string | One-sentence description, used in the dashboard and history |
+
+Custom fields (e.g. `confidence`, `severity_score`) are used by `agent_output`
+conditions and are passed through to the history record.
+
+If the JSON block is absent, the runtime treats the full text output as
+`{ "status": "success", "summary": "<first line of output>" }`.
+
+---
+
+## Runner vs Skill
+
+| Scenario | Use |
+|----------|-----|
+| Interactive session with a human in the loop | `/swarm <blueprint> "<task>"` |
+| CI/CD pipeline, scheduled job, or scripted automation | `node runtime/runner.js` |
+| Dry-run to inspect the execution plan | `/swarm <blueprint> "<task>" --dry-run` |
+| Preview topology and validate YAML | `/swarm-preview <blueprint>` |
+
+### Runner flags
+
+```bash
+node runtime/runner.js swarms/<blueprint>.yaml "<task>" \
+  [--max-cost <usd>]     \
+  [--timeout <seconds>]  \
+  [--model <name>]
+```
+
+The runner appends the same events to `.swarm/events.jsonl` as the skill, and
+archives the full event stream to `swarms/output/<id>.events.jsonl` for replay.
+
+---
+
+## Blueprint YAML Full Reference
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `name` | string | Yes | — | Unique identifier (lowercase, hyphens). Used as filename stem. |
+| `version` | string | No | — | Semver string, shown in the dashboard. |
+| `description` | string | Yes | — | 1-2 sentence summary of the blueprint. |
+| `flow` | string | Yes | — | Execution topology (see Flow Syntax). |
+| `output` | string | No | `markdown` | Output format: `markdown` or `json`. |
+| `agents` | object | Yes | — | Map of agent name → agent definition. |
+| `groups` | object | No | — | Named agent groups for Phase 2 conditional topology. |
+| `conditions` | object | No | — | Named condition gates for Phase 2 branching. |
+| `limits` | object | No | — | Per-run resource caps (timeout, retries, cost, tokens). |
+| `context` | array | No | `[]` | Blueprint-level context providers applied to all agents. |
+| `actions` | array | No | `[]` | Agent action permissions: `edit-files`, `run-tests`, `open-pr`. |
+
+### Agent definition fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `prompt` | string | Yes (or `role`) | Agent instructions. Supports `{task}` placeholder. |
+| `role` | string | Yes (or `prompt`) | Alias for `prompt`; either key is accepted. |
+| `context` | array | No | Agent-specific context providers (overrides blueprint-level). |
+| `tools` | array | No | Claude tool allowlist, e.g. `[WebSearch, WebFetch]`. |
+
+### Group definition fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `agents` | array | Yes | List of agent names that belong to this group. |
+| `description` | string | No | Human-readable description shown in the topology graph. |
+
+### Condition definition fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | Yes | `agent_output`, `validation`, or `compound`. |
+| `source` | string | `agent_output` only | Agent name whose JSON output is checked. |
+| `check` | string | `agent_output` only | JSON field name in the agent's output. |
+| `threshold` | string | `agent_output` only | Comparison expression: `"> 0.8"`, `"== success"`. |
+| `criteria` | string | `validation` only | `no-errors`, `no-warnings`, or `all-pass`. |
+| `operator` | string | `compound` only | `AND`, `OR`, or `NOT`. |
+| `operands` | array | `compound` only | List of condition names to combine. |
+| `retry_on_fallback` | boolean | No | If true, retry the pre-branch stage when the false branch is taken. |
+
+### Limits fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `agent_timeout` | number | Seconds before an agent attempt is killed. |
+| `agent_retries` | number | Number of retry attempts after a timeout or error. |
+| `max_cost_usd` | number | Per-run USD budget; run aborts gracefully when exceeded. |
+| `max_tokens` | number | Total token budget across all agents in the run. |
