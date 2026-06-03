@@ -124,6 +124,27 @@ function startServer(port) {
         budget: metrics.budgetUsage(events),
       }));
 
+    } else if (url.pathname === '/config' && req.method === 'POST') {
+      // Persist user settings; validation lives in config.saveConfig
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', () => {
+        try {
+          const parsed = JSON.parse(body);
+          const saved = require('./config.js').saveConfig(parsed);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(saved));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+
+    } else if (url.pathname === '/config') {
+      const cfg = require('./config.js');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(cfg.loadConfig()));
+
     } else if (url.pathname === '/library') {
       let data = '[]';
       try {

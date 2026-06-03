@@ -759,6 +759,132 @@
     transition: color 0.25s;
   }
 
+  /* ── SETTINGS PANEL ──────────────────────────── */
+  #settings-panel { display:none; flex:1; overflow:auto; padding:12px 16px; }
+
+  .settings-form {
+    max-width: 460px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .settings-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .settings-row-toggle {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .settings-label {
+    color: var(--text-secondary);
+    font-size: 11.5px;
+    font-weight: 500;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    transition: color 0.25s;
+  }
+  .settings-note {
+    color: var(--text-quaternary);
+    font-size: 10px;
+    font-weight: 400;
+    letter-spacing: 0.2px;
+    transition: color 0.25s;
+  }
+
+  .settings-input {
+    background: var(--bg-card-active);
+    border: 1px solid var(--border-secondary);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 12px;
+    padding: 8px 11px;
+    outline: none;
+    transition: border-color 0.15s, background 0.25s, color 0.25s;
+  }
+  .settings-input:focus { border-color: var(--accent-border); }
+  .settings-row-toggle .settings-input { width: auto; }
+
+  /* toggle switch */
+  .settings-toggle {
+    position: relative;
+    flex-shrink: 0;
+    display: inline-flex;
+    cursor: pointer;
+  }
+  .settings-toggle input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .settings-toggle-track {
+    width: 36px;
+    height: 20px;
+    border-radius: 999px;
+    background: var(--bg-card-active);
+    border: 1px solid var(--border-secondary);
+    position: relative;
+    transition: background 0.18s, border-color 0.18s;
+  }
+  .settings-toggle-track::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--text-tertiary);
+    transition: transform 0.18s, background 0.18s;
+  }
+  .settings-toggle input:checked + .settings-toggle-track {
+    background: var(--accent-dim);
+    border-color: var(--accent-border);
+  }
+  .settings-toggle input:checked + .settings-toggle-track::after {
+    transform: translateX(16px);
+    background: var(--accent);
+  }
+  .settings-toggle input:focus-visible + .settings-toggle-track {
+    box-shadow: 0 0 0 2px var(--accent-border);
+  }
+
+  .settings-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 6px;
+  }
+  .settings-save {
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--accent-border);
+    background: var(--accent-dim);
+    color: var(--accent-text);
+    padding: 8px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .settings-save:hover { background: var(--accent-glow); color: var(--text-primary); }
+  .settings-saved {
+    font-size: 11px;
+    font-family: var(--font-code);
+    color: var(--text-tertiary);
+    transition: color 0.25s;
+  }
+  .settings-saved.ok    { color: var(--color-done); }
+  .settings-saved.error { color: var(--color-error); }
+
   /* ── PANEL TITLES (inline) ───────────────────── */
   .panel-title {
     font-size: 10px;
@@ -875,6 +1001,7 @@
     <button id="tab-library"   class="tab"        onclick="showTab('library')">Library</button>
     <button id="tab-cost"      class="tab"        onclick="showTab('cost')">Cost</button>
     <button id="tab-decompose" class="tab"        onclick="showTab('decompose')">Decompose</button>
+    <button id="tab-settings"  class="tab"        onclick="showTab('settings')">Settings</button>
   </nav>
 
   <div id="header-status">
@@ -990,6 +1117,48 @@
 <div id="decompose-panel">
   <h2 class="panel-title">Decomposition Runs</h2>
   <div id="decompose-list"></div>
+</div>
+
+<div id="settings-panel">
+  <h2 class="panel-title">Settings</h2>
+  <div class="settings-form">
+    <div class="settings-row">
+      <label class="settings-label" for="set-port">Dashboard port
+        <span class="settings-note">requires restart to take effect</span>
+      </label>
+      <input type="number" id="set-port" class="settings-input">
+    </div>
+    <div class="settings-row">
+      <label class="settings-label" for="set-model">Default model</label>
+      <input type="text" id="set-model" class="settings-input">
+    </div>
+    <div class="settings-row">
+      <label class="settings-label" for="set-runcap">Per-run cost cap (USD)</label>
+      <input type="number" step="0.01" id="set-runcap" class="settings-input">
+    </div>
+    <div class="settings-row">
+      <label class="settings-label" for="set-monthcap">Monthly cost cap (USD)</label>
+      <input type="number" step="0.01" id="set-monthcap" class="settings-input">
+    </div>
+    <div class="settings-row settings-row-toggle">
+      <label class="settings-label" for="set-notify-complete">Notify on complete</label>
+      <label class="settings-toggle">
+        <input type="checkbox" id="set-notify-complete">
+        <span class="settings-toggle-track"></span>
+      </label>
+    </div>
+    <div class="settings-row settings-row-toggle">
+      <label class="settings-label" for="set-notify-error">Notify on error</label>
+      <label class="settings-toggle">
+        <input type="checkbox" id="set-notify-error">
+        <span class="settings-toggle-track"></span>
+      </label>
+    </div>
+    <div class="settings-actions">
+      <button id="set-save" class="settings-save">Save</button>
+      <span id="set-saved" class="settings-saved"></span>
+    </div>
+  </div>
 </div>
 
 <script src="graph.js"></script>
@@ -1453,7 +1622,7 @@
   let costTimer = null;
 
   function showTab(tab) {
-    ['live', 'history', 'library', 'cost', 'decompose'].forEach(t => {
+    ['live', 'history', 'library', 'cost', 'decompose', 'settings'].forEach(t => {
       document.getElementById('tab-' + t).classList.toggle('active', t === tab);
     });
     document.getElementById('bottom').style.display = tab === 'live' ? 'grid' : 'none';
@@ -1461,11 +1630,13 @@
     document.getElementById('library-panel').style.display = tab === 'library' ? 'flex' : 'none';
     document.getElementById('cost-panel').style.display = tab === 'cost' ? 'block' : 'none';
     document.getElementById('decompose-panel').style.display = tab === 'decompose' ? 'block' : 'none';
+    document.getElementById('settings-panel').style.display = tab === 'settings' ? 'block' : 'none';
 
     if (costTimer) { clearInterval(costTimer); costTimer = null; }
     if (tab === 'history') loadHistory();
     if (tab === 'library') loadLibrary();
     if (tab === 'decompose') loadDecompose();
+    if (tab === 'settings') loadSettings();
     if (tab === 'cost') {
       loadCost();
       costTimer = setInterval(() => { if (state.status === 'running') loadCost(); }, 2000);
@@ -1651,6 +1822,75 @@
         });
       });
   }
+
+  /* ── SETTINGS (read/write server config via /config) ── */
+  let setSavedTimer = null;
+  function loadSettings() {
+    fetch('/config')
+      .then(r => r.json())
+      .then(c => {
+        const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+        const setChk = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+        set('set-port', c.dashboardPort != null ? c.dashboardPort : '');
+        set('set-model', c.defaultModel != null ? c.defaultModel : '');
+        set('set-runcap', c.perRunCostCapUsd != null ? c.perRunCostCapUsd : '');
+        set('set-monthcap', c.monthlyCostCapUsd != null ? c.monthlyCostCapUsd : '');
+        setChk('set-notify-complete', c.notifyOnComplete);
+        setChk('set-notify-error', c.notifyOnError);
+      })
+      .catch(() => {});
+  }
+
+  function saveSettings() {
+    const saved = document.getElementById('set-saved');
+    const str = id => { const el = document.getElementById(id); return el ? el.value : undefined; };
+    const chk = id => { const el = document.getElementById(id); return el ? el.checked : undefined; };
+    // Booleans always sent; numbers only when non-empty + finite, so a cleared
+    // field is left unchanged server-side rather than saved as 0.
+    const body = {
+      notifyOnComplete: chk('set-notify-complete'),
+      notifyOnError: chk('set-notify-error'),
+    };
+    const addNum = (id, key) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const raw = el.value;
+      if (raw === '') return;
+      const n = Number(raw);
+      if (Number.isFinite(n)) body[key] = n;
+    };
+    addNum('set-port', 'dashboardPort');
+    addNum('set-runcap', 'perRunCostCapUsd');
+    addNum('set-monthcap', 'monthlyCostCapUsd');
+    const model = str('set-model');
+    if (model !== undefined) body.defaultModel = model;
+    fetch('/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+      .then(r => r.json().then(data => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        if (setSavedTimer) { clearTimeout(setSavedTimer); setSavedTimer = null; }
+        if (ok) {
+          if (saved) { saved.textContent = 'Saved ✓'; saved.className = 'settings-saved ok'; }
+          setSavedTimer = setTimeout(() => {
+            if (saved) { saved.textContent = ''; saved.className = 'settings-saved'; }
+          }, 2000);
+        } else if (saved) {
+          saved.textContent = (data && data.error) || 'Save failed';
+          saved.className = 'settings-saved error';
+        }
+      })
+      .catch(() => {
+        if (saved) { saved.textContent = 'Save failed'; saved.className = 'settings-saved error'; }
+      });
+  }
+
+  (function wireSettings() {
+    const btn = document.getElementById('set-save');
+    if (btn) btn.onclick = saveSettings;
+  })();
 
   function loadDecompose() {
     fetch('/history')
