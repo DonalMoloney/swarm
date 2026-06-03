@@ -572,16 +572,23 @@
   .cost-cards { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
 
   .cost-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-primary);
-    border-radius: 8px;
-    padding: 12px 16px;
-    min-width: 140px;
+    background: var(--bg-card-active);
+    border: 1px solid var(--border-secondary);
+    border-radius: 11px;
+    padding: 13px 16px;
+    min-width: 150px;
     transition: background 0.25s, border-color 0.25s;
   }
-  .cost-card .label { color: var(--text-secondary); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
-  .cost-card .value { color: var(--text-primary); font-size: 20px; margin-top: 4px; }
-  .cost-card .value.accent { color: var(--color-done); }
+  .cost-card .label { color: var(--text-tertiary); font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; }
+  .cost-card .value { color: var(--text-primary); font-size: 23px; margin-top: 5px; font-family: var(--font-code); font-weight: 600; letter-spacing: -0.01em; }
+  .cost-card .value.accent { color: var(--accent-text); }
+
+  /* inline mini-bar for the Cost table %, matching the breakdown mock */
+  .cost-bar { display: inline-flex; align-items: center; gap: 9px; width: 170px; }
+  .cost-bar .track { flex: 1; height: 7px; background: var(--bg-card-active); border-radius: 999px; overflow: hidden; }
+  .cost-bar .fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width 0.3s; }
+  .cost-bar .pct { font-family: var(--font-code); font-size: 10.5px; color: var(--text-tertiary); min-width: 42px; text-align: right; }
+  #cost-table td.bar-cell { width: 180px; }
 
   #cost-table { width:100%; border-collapse:collapse; margin-bottom:16px; }
   #cost-table th {
@@ -648,7 +655,12 @@
     transition: background 0.25s, border-color 0.25s;
   }
   .library-card-desc { color: var(--text-secondary); font-size: 11px; margin-top: 4px; }
-  .library-card-flow { color: var(--accent-text); font-size: 10px; margin-top: 4px; font-family: inherit; }
+  .library-card-flow {
+    display: inline-block; color: var(--text-secondary); font-size: 10px; margin-top: 8px;
+    font-family: var(--font-code);
+    background: var(--bg-card-active); border: 1px solid var(--border-secondary);
+    border-radius: 6px; padding: 3px 7px;
+  }
 
   #library-detail {
     flex: 1;
@@ -1342,12 +1354,34 @@
         } else {
           entries.forEach(([name, tok]) => {
             const tr = document.createElement('tr');
-            const pct = total ? ((tok / total) * 100).toFixed(1) : '0.0';
-            [name, tok.toLocaleString(), pct + '%'].forEach(text => {
-              const td = document.createElement('td');
-              td.textContent = text;
-              tr.appendChild(td);
-            });
+            const pct = total ? (tok / total) * 100 : 0;
+
+            const nameTd = document.createElement('td');
+            nameTd.textContent = name;
+            const tokTd = document.createElement('td');
+            tokTd.textContent = tok.toLocaleString();
+
+            // % column → inline bar (track + fill + label)
+            const barTd = document.createElement('td');
+            barTd.className = 'bar-cell';
+            const bar = document.createElement('div');
+            bar.className = 'cost-bar';
+            const track = document.createElement('div');
+            track.className = 'track';
+            const fill = document.createElement('div');
+            fill.className = 'fill';
+            fill.style.width = pct.toFixed(1) + '%';
+            track.appendChild(fill);
+            const pctLabel = document.createElement('span');
+            pctLabel.className = 'pct';
+            pctLabel.textContent = pct.toFixed(1) + '%';
+            bar.appendChild(track);
+            bar.appendChild(pctLabel);
+            barTd.appendChild(bar);
+
+            tr.appendChild(nameTd);
+            tr.appendChild(tokTd);
+            tr.appendChild(barTd);
             tbody.appendChild(tr);
           });
         }
