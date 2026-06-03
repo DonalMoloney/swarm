@@ -1,62 +1,358 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="openai">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Swarm Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+  /* ── THEME TOKENS · OpenAI "Clean" (single theme) ──
+     Inter · near-monochrome + one green · hairline borders · flat & airy.
+     Palette mirrors ui/theme-mockups.html (OpenAI direction). */
+  :root,
+  :root[data-theme="openai"] {
+    --font-ui:   'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    --font-code: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+    --bg-body:            #f7f7f8;
+    --bg-header:          #ffffff;
+    --bg-header-dot:      transparent;
+    --bg-card:            #ffffff;
+    --bg-card-hover:      #f7f7f8;
+    --bg-card-active:     #ececf1;
+    --bg-status:          #f7f7f8;
+    --bg-zoom:            rgba(255,255,255,0.9);
+
+    --text-primary:       #0d0d0d;
+    --text-secondary:     #5d5d6b;
+    --text-tertiary:      #8e8ea0;
+    --text-quaternary:    #b4b4c0;
+
+    --border-primary:     #e2e2e8;
+    --border-secondary:   #ececf1;
+    --border-subtle:      rgba(226,226,232,0.6);
+
+    --accent:             #10a37f;
+    --accent-dim:         rgba(16,163,127,0.08);
+    --accent-glow:        rgba(16,163,127,0.14);
+    --accent-text:        #0d8c6d;
+    --accent-border:      rgba(16,163,127,0.28);
+    --accent-gradient:    linear-gradient(90deg,transparent 0%,#10a37f 15%,#34c98e 50%,#10a37f 85%,transparent 100%);
+    --brand-glow:         0 0 14px rgba(16,163,127,0.2);
+
+    --color-running:      #10a37f;
+    --color-done:         #16a34a;
+    --color-error:        #ef4444;
+    --color-warn:         #d97706;
+    --color-purple:       #7c3aed;
+    --color-orange:       #ea580c;
+
+    --bg-running:         rgba(16,163,127,0.06);
+    --bg-done:            rgba(22,163,74,0.06);
+    --bg-error:           rgba(239,68,68,0.06);
+    --border-running:     rgba(16,163,127,0.25);
+    --border-done:        rgba(22,163,74,0.25);
+    --border-error:       rgba(239,68,68,0.25);
+    --glow-running:       none;
+    --glow-done:          none;
+    --glow-error:         none;
+
+    --scrollbar-thumb:    #d1d5db;
+    --tab-active-bg:      linear-gradient(180deg,rgba(16,163,127,0.1) 0%,rgba(16,163,127,0.04) 100%);
+    --budget-ok:          #16a34a;
+    --budget-warn:        #d97706;
+    --budget-over:        #ef4444;
+
+    --topo-grid:          rgba(13,13,13,0.05);   /* faint topology dot-grid */
+    --march-running:      var(--color-running);  /* marching-ants running ring */
+  }
+
+  /* ── THEME · OpenAI dark — warm near-black, monochrome green, flat hairlines.
+     Mirrors ui/theme-openai-mocks.html. Every color is a var, so graph.js
+     re-reads these on theme switch with no renderer changes. ── */
+  :root[data-theme="dark"] {
+    --bg-body:            #0d0d0d;
+    --bg-header:          #171717;
+    --bg-header-dot:      transparent;
+    --bg-card:            #171717;
+    --bg-card-hover:      #1e1e1e;
+    --bg-card-active:     #262626;
+    --bg-status:          #1e1e1e;
+    --bg-zoom:            rgba(23,23,23,0.9);
+
+    --text-primary:       #ececec;
+    --text-secondary:     #a8a8b3;
+    --text-tertiary:      #70707c;
+    --text-quaternary:    #4a4a52;
+
+    --border-primary:     #303030;
+    --border-secondary:   #262626;
+    --border-subtle:      rgba(48,48,48,0.7);
+
+    --accent:             #19c39c;
+    --accent-dim:         rgba(25,195,156,0.10);
+    --accent-glow:        rgba(25,195,156,0.18);
+    --accent-text:        #2ad4ab;
+    --accent-border:      rgba(25,195,156,0.30);
+    --accent-gradient:    linear-gradient(90deg,transparent 0%,#19c39c 15%,#34e0bb 50%,#19c39c 85%,transparent 100%);
+    --brand-glow:         0 0 14px rgba(25,195,156,0.25);
+
+    --color-running:      #19c39c;
+    --color-done:         #2ea36f;
+    --color-error:        #ef6b6b;
+    --color-warn:         #d8b24a;
+    --color-purple:       #a78bfa;
+    --color-orange:       #fb923c;
+
+    --bg-running:         rgba(25,195,156,0.10);
+    --bg-done:            rgba(46,163,111,0.10);
+    --bg-error:           rgba(239,107,107,0.10);
+    --border-running:     rgba(25,195,156,0.30);
+    --border-done:        rgba(46,163,111,0.30);
+    --border-error:       rgba(239,107,107,0.30);
+    --glow-running:       none;
+    --glow-done:          none;
+    --glow-error:         none;
+
+    --scrollbar-thumb:    #3a3a3a;
+    --tab-active-bg:      transparent;
+    --budget-ok:          #2ea36f;
+    --budget-warn:        #d8b24a;
+    --budget-over:        #ef6b6b;
+
+    --topo-grid:          rgba(255,255,255,0.05);
+    --march-running:      var(--color-running);
+  }
+
+  /* ── RESET ───────────────────────────────────── */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
-    background: radial-gradient(circle at 50% -20%, #11203f 0%, #0a0d14 55%) fixed;
-    color: #e6edf3;
-    font-family: 'SF Mono', 'Cascadia Code', monospace;
+    background: var(--bg-body);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
     font-size: 12px;
     height: 100vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    transition: background 0.25s, color 0.25s;
   }
 
+  /* ── HEADER ──────────────────────────────────── */
   header {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg-header);
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    flex-shrink: 0;
+    overflow: hidden;
+    transition: background 0.25s, border-color 0.25s;
+  }
+
+  header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: var(--accent-gradient);
+    z-index: 2;
+  }
+
+  header::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(circle, var(--bg-header-dot) 1px, transparent 1px);
+    background-size: 20px 20px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #header-brand {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 10px 16px;
-    border-bottom: 1px solid #1f6feb22;
-    background: #0f1623cc;
-    backdrop-filter: blur(6px);
+    gap: 10px;
+    padding: 9px 18px 9px 14px;
+    border-right: 1px solid var(--border-subtle);
     flex-shrink: 0;
+    position: relative;
+    z-index: 1;
   }
 
-  header h1 { font-size: 13px; color: #7cc0ff; text-shadow: 0 0 10px #58a6ff66; }
-  header .meta { color: #8b949e; font-size: 11px; }
+  #header-logo { width: 26px; height: 26px; flex-shrink: 0; }
 
-  #status-badge {
-    padding: 2px 8px;
-    border-radius: 10px;
+  .brand-wordmark { display: flex; flex-direction: column; gap: 2px; }
+
+  .brand-name {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
+    line-height: 1.1;
+    transition: color 0.25s;
+  }
+
+  .brand-sub {
     font-size: 11px;
-    background: #21262d;
-    color: #8b949e;
-    transition: background 0.2s, box-shadow 0.2s, color 0.2s;
+    letter-spacing: 0.2px;
+    color: var(--text-tertiary);
+    line-height: 1.2;
+    transition: color 0.25s;
   }
-  #status-badge.running { background: #1f6feb33; color: #7cc0ff; box-shadow: 0 0 12px #1f6feb66; }
-  #status-badge.done    { background: #23863633; color: #56d364; box-shadow: 0 0 12px #23863655; }
-  #status-badge.error   { background: #f8514922; color: #f85149; box-shadow: 0 0 12px #f8514944; }
-  #status-badge.running::before { content: '● '; animation: pulse 1.2s ease-in-out infinite; }
 
-  /* Top: topology graph */
-  #graph-panel {
-    flex: 0 0 auto;
-    border-bottom: 1px solid #1f6feb22;
-    padding: 8px 12px;
+  #tabs {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    padding: 0 10px;
+    position: relative;
+    z-index: 1;
+    gap: 2px;
+  }
+
+  .tab {
     background: transparent;
+    border: 0;
+    color: var(--text-secondary);
+    padding: 7px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 450;
+    letter-spacing: 0.1px;
+    text-transform: none;
+    transition: color 0.15s, background 0.15s, box-shadow 0.15s;
     position: relative;
   }
 
-  #graph-panel h2 { font-size: 10px; color: #484f58; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .tab:hover { color: var(--text-primary); }
+  .tab.active {
+    color: var(--accent-text);
+    background: var(--tab-active-bg);
+  }
+
+  /* OpenAI: flat underline tabs instead of pills (both light + dark) */
+  :root[data-theme="openai"] .tab,
+  :root[data-theme="dark"] .tab { border-radius: 0; }
+  :root[data-theme="openai"] .tab.active,
+  :root[data-theme="dark"] .tab.active {
+    color: var(--text-primary);
+    background: transparent;
+    box-shadow: inset 0 -2px 0 var(--text-primary);
+  }
+
+  /* theme toggle button */
+  #theme-toggle {
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-primary);
+    color: var(--text-secondary);
+    font-size: 14px; line-height: 1;
+    cursor: pointer;
+    display: grid; place-items: center;
+    transition: color 0.15s, border-color 0.15s, background 0.25s;
+  }
+  #theme-toggle:hover { color: var(--text-primary); border-color: var(--accent-border); }
+
+  #header-status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 14px;
+    border-left: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .header-meta {
+    font-size: 10px;
+    color: var(--text-quaternary);
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    letter-spacing: 0.4px;
+    transition: color 0.25s;
+  }
+
+  #status-badge {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 12px 5px 11px;
+    border: 1px solid var(--border-primary);
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    text-transform: capitalize;
+    background: var(--bg-status);
+    color: var(--text-tertiary);
+    transition: all 0.25s;
+  }
+
+  #status-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+  }
+
+  #status-badge.running {
+    border-color: var(--border-running);
+    color: var(--color-running);
+    background: var(--bg-running);
+    box-shadow: var(--glow-running);
+  }
+  #status-badge.running #status-dot { animation: pulse 1s ease-in-out infinite; box-shadow: 0 0 5px currentColor; }
+  #status-badge.done  { border-color: var(--border-done); color: var(--color-done); background: var(--bg-done); box-shadow: var(--glow-done); }
+  #status-badge.error { border-color: var(--border-error); color: var(--color-error); background: var(--bg-error); box-shadow: var(--glow-error); }
+
+  /* ── GRAPH PANEL ─────────────────────────────── */
+  #graph-panel {
+    flex: 0 0 auto;
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 8px 12px;
+    background: transparent;
+    position: relative;
+    transition: border-color 0.25s;
+  }
+
+  #graph-panel h2 {
+    font-size: 10px;
+    color: var(--text-quaternary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    transition: color 0.25s;
+  }
+
+  /* faint topology dot-grid backdrop (masked vignette), sits under the SVG */
+  #graph-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background-image: radial-gradient(var(--topo-grid) 1px, transparent 1px);
+    background-size: 20px 20px;
+    -webkit-mask-image: radial-gradient(130% 150% at 50% 40%, #000 32%, transparent 92%);
+            mask-image: radial-gradient(130% 150% at 50% 40%, #000 32%, transparent 92%);
+  }
+  #graph-panel h2 { position: relative; z-index: 1; }
 
   #graph-svg {
+    position: relative;
+    z-index: 1;
     width: 100%;
     height: 120px;
     display: block;
@@ -65,7 +361,10 @@
   }
   #graph-svg.dragging { cursor: grabbing; }
 
-  /* Zoom controls — shown only when the topology has multiple nodes */
+  /* marching-ants running node (set by graph.js) — flat, no glow */
+  #graph-svg circle.node-running { animation: march 0.6s linear infinite; }
+  @keyframes march { to { stroke-dashoffset: -22; } }
+
   #graph-zoom {
     position: absolute;
     top: 8px;
@@ -74,18 +373,19 @@
     align-items: center;
     gap: 4px;
     z-index: 5;
-    background: #0f1623cc;
-    backdrop-filter: blur(6px);
-    border: 1px solid #1f6feb33;
+    background: var(--bg-zoom);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border-primary);
     border-radius: 6px;
     padding: 2px 4px;
+    transition: background 0.25s, border-color 0.25s;
   }
   #graph-zoom button {
     width: 20px;
     height: 20px;
-    background: #1c2433;
-    border: 1px solid #2a3346;
-    color: #9ecbff;
+    background: var(--bg-card);
+    border: 1px solid var(--border-primary);
+    color: var(--accent-text);
     border-radius: 4px;
     cursor: pointer;
     font-size: 13px;
@@ -96,23 +396,16 @@
     justify-content: center;
     transition: border-color 0.15s, color 0.15s;
   }
-  #graph-zoom button:hover { border-color: #58a6ff66; color: #cfe3ff; }
-  #graph-zoom-label { color: #8b949e; font-size: 10px; min-width: 34px; text-align: center; }
+  #graph-zoom button:hover { border-color: var(--accent-border); color: var(--text-primary); }
+  #graph-zoom-label { color: var(--text-secondary); font-size: 10px; min-width: 34px; text-align: center; }
 
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-  }
+  /* ── ANIMATIONS ──────────────────────────────── */
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
   .pulse { animation: pulse 1.2s ease-in-out infinite; }
-
-  /* Marching dashes on live topology edges */
   @keyframes flow { to { stroke-dashoffset: -20; } }
-  .edge-live {
-    stroke-dasharray: 6 4;
-    animation: flow 0.6s linear infinite;
-  }
+  .edge-live { stroke-dasharray: 6 4; animation: flow 0.6s linear infinite; }
 
-  /* Bottom: task tree + logs side by side */
+  /* ── BOTTOM LAYOUT ───────────────────────────── */
   #bottom {
     display: grid;
     grid-template-columns: 280px 1fr;
@@ -121,51 +414,69 @@
   }
 
   #task-panel {
-    border-right: 1px solid #1f6feb22;
+    border-right: 1px solid var(--border-subtle);
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    transition: border-color 0.25s;
   }
 
   #task-panel h2, #log-panel h2 {
     font-size: 10px;
-    color: #484f58;
+    color: var(--text-quaternary);
     text-transform: uppercase;
     letter-spacing: 1px;
     padding: 8px 12px 6px;
-    border-bottom: 1px solid #21262d;
+    border-bottom: 1px solid var(--border-secondary);
     flex-shrink: 0;
+    transition: color 0.25s, border-color 0.25s;
   }
 
   #task-list {
     flex: 1;
     overflow-y: auto;
-    padding: 8px 0;
+    padding: 10px 8px;
   }
 
   .task-item {
     display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 6px 12px;
-    border-bottom: 1px solid #21262d11;
-    transition: background 0.15s;
+    align-items: center;
+    gap: 11px;
+    padding: 9px 11px;
+    border-radius: 10px;
+    margin-bottom: 4px;
+    transition: background 0.15s, box-shadow 0.15s;
   }
 
-  .task-item:hover { background: #161b22; }
+  .task-item:hover { background: var(--bg-card-hover); }
+  .task-item:has(.task-icon.running) {
+    background: var(--bg-running);
+    box-shadow: inset 0 0 0 1px var(--border-running);
+  }
+  .task-item:has(.task-icon.error) {
+    background: var(--bg-error);
+    box-shadow: inset 0 0 0 1px var(--border-error);
+  }
 
-  .task-icon { flex-shrink: 0; width: 14px; text-align: center; margin-top: 1px; }
-  .task-icon.pending  { color: #484f58; }
-  .task-icon.running  { color: #58a6ff; text-shadow: 0 0 8px #58a6ff; }
-  .task-icon.done     { color: #3fb950; text-shadow: 0 0 8px #3fb95099; }
-  .task-icon.error    { color: #f85149; text-shadow: 0 0 8px #f8514999; }
+  .task-icon {
+    flex-shrink: 0;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+  }
+  .task-icon.pending  { color: var(--text-tertiary); box-shadow: inset 0 0 0 1.5px var(--text-quaternary); }
+  .task-icon.running  { color: #fff; background: var(--color-running); }
+  .task-icon.done     { color: var(--color-done); background: var(--bg-done); }
+  .task-icon.error    { color: var(--color-error); background: var(--bg-error); }
 
   .task-body { flex: 1; min-width: 0; }
-  .task-name { color: #e6edf3; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .task-name.pending { color: #484f58; }
-  .task-meta { color: #8b949e; font-size: 10px; margin-top: 2px; }
+  .task-name { color: var(--text-primary); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color 0.25s; }
+  .task-name.pending { color: var(--text-quaternary); }
+  .task-meta { color: var(--text-secondary); font-size: 10px; margin-top: 2px; font-family: var(--font-code); transition: color 0.25s; }
   .task-output {
-    color: #8b949e;
+    color: var(--text-secondary);
     font-size: 10px;
     margin-top: 4px;
     overflow: hidden;
@@ -174,7 +485,7 @@
     max-width: 220px;
   }
 
-  /* Log panel */
+  /* ── LOG PANEL ───────────────────────────────── */
   #log-panel {
     display: flex;
     flex-direction: column;
@@ -186,89 +497,343 @@
     flex: 1;
     overflow-y: auto;
     padding: 8px 12px;
-    line-height: 1.6;
+    font-family: var(--font-code);
+    font-size: 11.5px;
+    line-height: 1.85;
   }
 
-  .log-line {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 1px;
-  }
-
-  .log-ts { color: #484f58; flex-shrink: 0; }
+  .log-line { display: flex; gap: 8px; margin-bottom: 1px; }
+  .log-ts { color: var(--text-quaternary); flex-shrink: 0; }
   .log-agent { flex-shrink: 0; min-width: 80px; font-weight: 600; }
-  .log-msg { color: #8b949e; word-break: break-word; }
+  .log-msg { color: var(--text-secondary); word-break: break-word; }
 
-  .log-line.swarm_start .log-agent, .log-line.swarm_done .log-agent { color: #a371f7; }
-  .log-line.agent_start .log-agent  { color: #58a6ff; }
-  .log-line.agent_done  .log-agent  { color: #3fb950; }
-  .log-line.agent_error .log-agent  { color: #f85149; }
-  .log-line.agent_log   .log-agent  { color: #d29922; }
+  .log-line.swarm_start .log-agent, .log-line.swarm_done .log-agent { color: var(--color-purple); }
+  .log-line.agent_start .log-agent  { color: var(--color-running); }
+  .log-line.agent_done  .log-agent  { color: var(--color-done); }
+  .log-line.agent_error .log-agent  { color: var(--color-error); }
+  .log-line.agent_log   .log-agent  { color: var(--color-warn); }
 
-  /* Scrollbars */
+  /* ── SCROLLBARS ──────────────────────────────── */
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }
+  ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 2px; transition: background 0.25s; }
 
   #empty-state {
     display: flex;
     align-items: center;
     justify-content: center;
     height: 100%;
-    color: #484f58;
+    color: var(--text-quaternary);
     font-size: 11px;
   }
 
-  .tab { background:#1c2433; border:1px solid #2a3346; color:#8b949e; padding:3px 10px; border-radius:4px; cursor:pointer; font-family:inherit; font-size:11px; transition: background 0.15s, color 0.15s, border-color 0.15s; }
-  .tab:hover { color:#9ecbff; border-color:#58a6ff44; }
-  .tab.active { background:linear-gradient(#1f6feb44,#1f6feb22); color:#9ecbff; border-color:#58a6ff66; }
+  /* ── SECONDARY PANELS ────────────────────────── */
   #history-panel { display:none; flex:1; overflow:auto; padding:12px 16px; }
   #history-panel.visible { display:block; }
-  #history-table { width:100%; border-collapse:collapse; }
-  #history-table th { color:#484f58; font-size:10px; text-transform:uppercase; letter-spacing:1px; padding:4px 8px; border-bottom:1px solid #21262d; text-align:left; }
-  #history-table td { padding:5px 8px; border-bottom:1px solid #161b22; color:#8b949e; font-size:11px; }
-  #history-table td:first-child { color:#e6edf3; }
-  #history-output { margin-top:12px; background:#161b22; border:1px solid #21262d; border-radius:4px; padding:12px; white-space:pre-wrap; color:#8b949e; font-size:11px; display:none; }
 
-  /* Cost tab */
+  #history-table { width:100%; border-collapse:collapse; }
+  #history-table th {
+    color: var(--text-quaternary);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border-secondary);
+    text-align: left;
+    transition: color 0.25s, border-color 0.25s;
+  }
+  #history-table td {
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    font-size: 11px;
+    transition: color 0.25s;
+  }
+  #history-table td:first-child { color: var(--text-primary); }
+  #history-table tr { cursor: pointer; transition: background 0.12s; }
+  #history-table tr:hover td { background: var(--bg-card-hover); }
+
+  #history-output {
+    margin-top: 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-primary);
+    border-radius: 4px;
+    padding: 12px;
+    white-space: pre-wrap;
+    color: var(--text-secondary);
+    font-size: 11px;
+    display: none;
+    transition: background 0.25s, border-color 0.25s;
+  }
+
+  /* ── COST PANEL ──────────────────────────────── */
   #cost-panel { display:none; flex:1; overflow:auto; padding:12px 16px; }
+
   .cost-cards { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
-  .cost-card { background:#161b22; border:1px solid #21262d; border-radius:6px; padding:12px 16px; min-width:140px; }
-  .cost-card .label { color:#8b949e; font-size:10px; text-transform:uppercase; letter-spacing:1px; }
-  .cost-card .value { color:#e6edf3; font-size:20px; margin-top:4px; }
-  .cost-card .value.accent { color:#56d364; }
+
+  .cost-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-primary);
+    border-radius: 8px;
+    padding: 12px 16px;
+    min-width: 140px;
+    transition: background 0.25s, border-color 0.25s;
+  }
+  .cost-card .label { color: var(--text-secondary); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+  .cost-card .value { color: var(--text-primary); font-size: 20px; margin-top: 4px; }
+  .cost-card .value.accent { color: var(--color-done); }
+
   #cost-table { width:100%; border-collapse:collapse; margin-bottom:16px; }
-  #cost-table th { color:#484f58; font-size:10px; text-transform:uppercase; letter-spacing:1px; padding:4px 8px; border-bottom:1px solid #21262d; text-align:left; }
-  #cost-table td { padding:5px 8px; border-bottom:1px solid #161b22; color:#8b949e; font-size:11px; }
-  #cost-table td:first-child { color:#e6edf3; }
+  #cost-table th {
+    color: var(--text-quaternary);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border-secondary);
+    text-align: left;
+  }
+  #cost-table td {
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    font-size: 11px;
+  }
+  #cost-table td:first-child { color: var(--text-primary); }
   #cost-table td:last-child, #cost-table th:last-child { text-align:right; }
+
   #budget-wrap { margin-bottom:16px; display:none; }
-  #budget-wrap .budget-label { color:#8b949e; font-size:11px; margin-bottom:6px; }
-  #budget-bar { height:14px; background:#21262d; border-radius:7px; overflow:hidden; }
-  #budget-fill { height:100%; width:0%; background:#238636; transition:width 0.3s, background 0.3s; }
-  #budget-fill.warn { background:#d29922; }
-  #budget-fill.over { background:#f85149; }
-  #cost-footer { color:#8b949e; font-size:11px; border-top:1px solid #21262d; padding-top:10px; }
-  #cost-footer strong { color:#e6edf3; }
+  #budget-wrap .budget-label { color: var(--text-secondary); font-size:11px; margin-bottom:6px; }
+  #budget-bar { height:14px; background: var(--border-secondary); border-radius:7px; overflow:hidden; }
+  #budget-fill { height:100%; width:0%; background: var(--budget-ok); transition: width 0.3s, background 0.3s; }
+  #budget-fill.warn { background: var(--budget-warn); }
+  #budget-fill.over { background: var(--budget-over); }
+
+  #cost-footer {
+    color: var(--text-secondary);
+    font-size: 11px;
+    border-top: 1px solid var(--border-secondary);
+    padding-top: 10px;
+  }
+  #cost-footer strong { color: var(--text-primary); }
+
+  /* ── LIBRARY PANEL ───────────────────────────── */
+  #library-panel { display:none; flex:1; overflow:auto; padding:12px 16px; }
+
+  .library-card {
+    border: 1px solid var(--border-primary);
+    border-radius: 6px;
+    margin-bottom: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    background: var(--bg-card);
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .library-card:hover { border-color: var(--accent-border); background: var(--bg-card-hover); }
+  .library-card.selected { background: var(--bg-card-active); }
+
+  .library-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .library-card-name { color: var(--text-primary); font-weight: 600; }
+  .library-card-version {
+    color: var(--color-done);
+    font-size: 10px;
+    background: var(--bg-card-hover);
+    border: 1px solid var(--border-primary);
+    border-radius: 3px;
+    padding: 1px 6px;
+    transition: background 0.25s, border-color 0.25s;
+  }
+  .library-card-desc { color: var(--text-secondary); font-size: 11px; margin-top: 4px; }
+  .library-card-flow { color: var(--accent-text); font-size: 10px; margin-top: 4px; font-family: inherit; }
+
+  #library-detail {
+    flex: 1;
+    background: var(--bg-card);
+    border: 1px solid var(--border-primary);
+    border-radius: 4px;
+    padding: 12px;
+    white-space: pre-wrap;
+    color: var(--text-secondary);
+    font-size: 11px;
+    display: none;
+    margin: 0;
+    transition: background 0.25s, border-color 0.25s;
+  }
+
+  /* ── DECOMPOSE PANEL ─────────────────────────── */
+  #decompose-panel { display:none; flex:1; overflow:auto; padding:12px 16px; }
+
+  .decompose-section {
+    border: 1px solid var(--border-primary);
+    border-radius: 6px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    transition: border-color 0.25s;
+  }
+  .decompose-header {
+    background: var(--bg-card);
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.15s;
+  }
+  .decompose-header:hover { background: var(--bg-card-hover); }
+  .decompose-title { color: var(--text-primary); }
+  .decompose-meta { color: var(--text-quaternary); font-size: 10px; }
+  .decompose-body {
+    display: none;
+    padding: 12px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    margin: 0;
+    transition: color 0.25s;
+  }
+
+  /* ── PANEL TITLES (inline) ───────────────────── */
+  .panel-title {
+    font-size: 10px;
+    color: var(--text-quaternary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+    transition: color 0.25s;
+  }
+
+  /* ── TOPOLOGY VIEW SWITCHER ───────────────────── */
+  #topo-head {
+    position: relative; z-index: 1;
+    display: flex; align-items: center; gap: 12px; margin-bottom: 6px;
+  }
+  #topo-head h2 { margin-bottom: 0; }
+  #topo-seg {
+    display: inline-flex; gap: 2px;
+    background: var(--bg-card-active);
+    border: 1px solid var(--border-secondary);
+    border-radius: 8px; padding: 2px;
+  }
+  .seg-btn {
+    font-family: inherit; font-size: 11px; font-weight: 450;
+    border: 0; background: transparent; color: var(--text-secondary);
+    padding: 3px 11px; border-radius: 6px; cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .seg-btn:hover { color: var(--text-primary); }
+  .seg-btn.active {
+    background: var(--bg-card); color: var(--text-primary); font-weight: 500;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+  }
+
+  #blueprint-view {
+    position: relative; z-index: 1;
+    font-family: var(--font-code); font-size: 11px; line-height: 1.7;
+    color: var(--text-secondary);
+    background: var(--bg-card-active);
+    border: 1px solid var(--border-secondary);
+    border-radius: 10px;
+    padding: 12px 14px; margin-top: 2px;
+    max-height: 360px; overflow: auto; white-space: pre;
+  }
+  #blueprint-view[hidden] { display: none; }
+
+  /* ── NODE-CLICK DRAWER ────────────────────────── */
+  #drawer-scrim {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.28);
+    opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 40;
+  }
+  #drawer-scrim.open { opacity: 1; pointer-events: auto; }
+  #agent-drawer {
+    position: fixed; top: 0; right: 0; height: 100%; width: 340px; max-width: 90vw;
+    background: var(--bg-card); border-left: 1px solid var(--border-primary);
+    box-shadow: -12px 0 32px -16px rgba(0,0,0,0.45);
+    transform: translateX(100%); transition: transform 0.24s cubic-bezier(.4,0,.2,1);
+    z-index: 50; display: flex; flex-direction: column; overflow: auto;
+  }
+  #agent-drawer.open { transform: translateX(0); }
+  .dw-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 16px 12px; border-bottom: 1px solid var(--border-secondary);
+  }
+  .dw-name { font-family: var(--font-code); font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .dw-badge {
+    font-size: 10px; font-weight: 500; padding: 2px 9px; border-radius: 999px; text-transform: capitalize;
+    background: var(--bg-card-active); color: var(--text-tertiary);
+  }
+  .dw-badge.running { background: var(--bg-running); color: var(--color-running); }
+  .dw-badge.done    { background: var(--bg-done);    color: var(--color-done); }
+  .dw-badge.error   { background: var(--bg-error);   color: var(--color-error); }
+  .dw-close { margin-left: auto; border: 0; background: transparent; color: var(--text-tertiary);
+    font-size: 13px; cursor: pointer; width: 26px; height: 26px; border-radius: 6px; }
+  .dw-close:hover { background: var(--bg-card-active); color: var(--text-primary); }
+  .dw-stats { display: flex; gap: 10px; padding: 14px 16px; }
+  .dw-stat { flex: 1; background: var(--bg-card-active); border: 1px solid var(--border-secondary);
+    border-radius: 9px; padding: 9px 11px; display: flex; flex-direction: column; gap: 3px; }
+  .dw-stat .k { font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .03em; }
+  .dw-stat .v { font-size: 14px; font-weight: 600; font-family: var(--font-code); color: var(--text-primary); }
+  .dw-sec { padding: 4px 16px 16px; }
+  .dw-sec h4 { font-size: 10px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase;
+    letter-spacing: .03em; margin-bottom: 7px; }
+  .dw-box { background: var(--bg-card-active); border: 1px solid var(--border-secondary); border-radius: 9px;
+    padding: 10px 12px; font-size: 12px; line-height: 1.55; color: var(--text-secondary); word-break: break-word; }
 </style>
 </head>
 <body>
 
 <header>
-  <h1 id="swarm-title">⬡ Swarm Dashboard</h1>
-    <nav id="tabs" style="display:flex;gap:4px;">
-      <button id="tab-live"      class="tab active" onclick="showTab('live')">Live</button>
-      <button id="tab-history"   class="tab"        onclick="showTab('history')">History</button>
-      <button id="tab-library"   class="tab"        onclick="showTab('library')">Library</button>
-      <button id="tab-cost"      class="tab"        onclick="showTab('cost')">Cost</button>
-      <button id="tab-decompose" class="tab"        onclick="showTab('decompose')">Decompose</button>
-    </nav>
-  <span class="meta" id="swarm-meta">waiting for swarm…</span>
-  <span id="status-badge">idle</span>
+  <div id="header-brand">
+    <svg id="header-logo" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="13,1.5 23,7 23,19 13,24.5 3,19 3,7"
+               stroke="var(--accent)" stroke-width="1.2" fill="var(--bg-header)"/>
+      <polygon points="13,6.5 18,9.5 18,16.5 13,19.5 8,16.5 8,9.5"
+               stroke="var(--accent-text)" stroke-width="0.8" fill="none" opacity="0.4"/>
+      <circle cx="13" cy="13" r="1.5" fill="var(--accent-text)" opacity="0.9"/>
+      <circle cx="13" cy="9"  r="0.9" fill="var(--accent)" opacity="0.7"/>
+      <circle cx="16.5" cy="11" r="0.9" fill="var(--accent)" opacity="0.7"/>
+      <circle cx="16.5" cy="15" r="0.9" fill="var(--accent)" opacity="0.7"/>
+      <circle cx="13" cy="17" r="0.9" fill="var(--accent)" opacity="0.7"/>
+      <circle cx="9.5" cy="15" r="0.9" fill="var(--accent)" opacity="0.7"/>
+      <circle cx="9.5" cy="11" r="0.9" fill="var(--accent)" opacity="0.7"/>
+    </svg>
+    <div class="brand-wordmark">
+      <span class="brand-name" id="swarm-title">Swarm</span>
+      <span class="brand-sub">multi-agent orchestrator</span>
+    </div>
+  </div>
+
+  <nav id="tabs">
+    <button id="tab-live"      class="tab active" onclick="showTab('live')">Live</button>
+    <button id="tab-history"   class="tab"        onclick="showTab('history')">History</button>
+    <button id="tab-library"   class="tab"        onclick="showTab('library')">Library</button>
+    <button id="tab-cost"      class="tab"        onclick="showTab('cost')">Cost</button>
+    <button id="tab-decompose" class="tab"        onclick="showTab('decompose')">Decompose</button>
+  </nav>
+
+  <div id="header-status">
+    <span class="header-meta" id="swarm-meta">waiting for swarm…</span>
+    <div id="status-badge">
+      <span id="status-dot"></span>
+      <span id="status-text">idle</span>
+    </div>
+    <button id="theme-toggle" title="Toggle light / dark" aria-label="Toggle theme">◐</button>
+  </div>
 </header>
 
 <div id="graph-panel">
-  <h2>Topology</h2>
+  <div id="topo-head">
+    <h2>Topology</h2>
+    <div id="topo-seg">
+      <button class="seg-btn active" data-view="graph"     onclick="setTopoView('graph')">Graph</button>
+      <button class="seg-btn"        data-view="timeline"  onclick="setTopoView('timeline')">Timeline</button>
+      <button class="seg-btn"        data-view="tokens"    onclick="setTopoView('tokens')">Tokens</button>
+      <button class="seg-btn"        data-view="blueprint" onclick="setTopoView('blueprint')">Blueprint</button>
+    </div>
+  </div>
   <div id="graph-zoom">
     <button onclick="graphZoom.zoomOut()" title="Zoom out">−</button>
     <span id="graph-zoom-label">100%</span>
@@ -276,7 +841,23 @@
     <button onclick="graphZoom.reset()" title="Reset view">⤢</button>
   </div>
   <svg id="graph-svg"></svg>
+  <pre id="blueprint-view" hidden></pre>
 </div>
+
+<!-- node-click detail drawer -->
+<div id="drawer-scrim"></div>
+<aside id="agent-drawer" aria-label="Agent detail">
+  <div class="dw-head">
+    <span class="dw-name" id="dw-name">agent</span>
+    <span class="dw-badge" id="dw-badge">status</span>
+    <button class="dw-close" id="dw-close" title="Close (Esc)">✕</button>
+  </div>
+  <div class="dw-stats">
+    <div class="dw-stat"><span class="k">Duration</span><span class="v" id="dw-dur">—</span></div>
+    <div class="dw-stat"><span class="k">Tokens</span><span class="v" id="dw-tok">—</span></div>
+  </div>
+  <div class="dw-sec"><h4>Latest output</h4><div class="dw-box" id="dw-out">—</div></div>
+</aside>
 
 <div id="bottom">
   <div id="task-panel">
@@ -293,7 +874,7 @@
 </div>
 
 <div id="history-panel">
-  <h2 style="font-size:10px;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Run History</h2>
+  <h2 class="panel-title">Run History</h2>
   <table id="history-table">
     <thead><tr><th>ID</th><th>Blueprint</th><th>Task</th><th>Date</th></tr></thead>
     <tbody id="history-body"></tbody>
@@ -301,16 +882,16 @@
   <pre id="history-output"></pre>
 </div>
 
-<div id="library-panel" style="display:none;flex:1;overflow:auto;padding:12px 16px;">
-  <h2 style="font-size:10px;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Blueprint Library</h2>
+<div id="library-panel">
+  <h2 class="panel-title">Blueprint Library</h2>
   <div style="display:flex;gap:16px;align-items:flex-start;">
     <div id="library-list" style="flex:0 0 320px;"></div>
-    <pre id="library-detail" style="flex:1;background:#161b22;border:1px solid #21262d;border-radius:4px;padding:12px;white-space:pre-wrap;color:#8b949e;font-size:11px;display:none;margin:0;"></pre>
+    <pre id="library-detail"></pre>
   </div>
 </div>
 
 <div id="cost-panel">
-  <h2 style="font-size:10px;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Cost &amp; Tokens</h2>
+  <h2 class="panel-title">Cost &amp; Tokens</h2>
   <div class="cost-cards">
     <div class="cost-card">
       <div class="label">Total Tokens</div>
@@ -335,8 +916,8 @@
   <div id="cost-footer"></div>
 </div>
 
-<div id="decompose-panel" style="display:none;flex:1;overflow:auto;padding:12px 16px;">
-  <h2 style="font-size:10px;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Decomposition Runs</h2>
+<div id="decompose-panel">
+  <h2 class="panel-title">Decomposition Runs</h2>
   <div id="decompose-list"></div>
 </div>
 
@@ -346,17 +927,20 @@
     swarmName: '',
     task: '',
     stages: [],
-    agents: {},   // name → { status, tokens, elapsed, output, startedAt }
+    agents: {},
     status: 'idle',
   };
 
-  const AGENT_COLORS = ['#58a6ff','#3fb950','#d29922','#a371f7','#f0883e','#39d353','#f85149'];
+  const AGENT_COLORS_DARK  = ['#06b6d4','#34d399','#fbbf24','#f0abfc','#fb923c','#7dd3fc','#f87171'];
+  const AGENT_COLORS_LIGHT = ['#10a37f','#16a34a','#d97706','#7c3aed','#ea580c','#0284c7','#ef4444'];
   const agentColorMap = {};
   let colorIdx = 0;
 
   function agentColor(name) {
     if (!agentColorMap[name]) {
-      agentColorMap[name] = AGENT_COLORS[colorIdx++ % AGENT_COLORS.length];
+      const palette = document.documentElement.getAttribute('data-theme') === 'openai'
+        ? AGENT_COLORS_LIGHT : AGENT_COLORS_DARK;
+      agentColorMap[name] = palette[colorIdx++ % palette.length];
     }
     return agentColorMap[name];
   }
@@ -374,16 +958,16 @@
     const title = document.getElementById('swarm-title');
     const meta = document.getElementById('swarm-meta');
     const badge = document.getElementById('status-badge');
+    const statusText = document.getElementById('status-text');
 
-    const name = state.swarmName ? `⬡ ${state.swarmName}` : '⬡ Swarm Dashboard';
-    title.textContent = name;
+    title.textContent = state.swarmName || 'Swarm';
     meta.textContent = state.task || 'waiting for swarm…';
 
-    badge.textContent = state.status;
+    statusText.textContent = state.status;
     badge.className = '';
     if (state.status === 'running') badge.classList.add('running');
-    if (state.status === 'done') badge.classList.add('done');
-    if (state.status === 'error') badge.classList.add('error');
+    if (state.status === 'done')    badge.classList.add('done');
+    if (state.status === 'error')   badge.classList.add('error');
   }
 
   function renderTaskList() {
@@ -471,14 +1055,12 @@
         state.task = event.message || '';
         state.status = 'running';
         if (event.stages) state.stages = event.stages;
-        // Register all agents as pending
         if (event.agents) {
           event.agents.forEach(name => {
             state.agents[name] = { status: 'pending', tokens: 0, elapsed: 0 };
           });
         }
         break;
-
       case 'agent_start':
         if (event.agent) {
           state.agents[event.agent] = {
@@ -488,13 +1070,11 @@
           };
         }
         break;
-
       case 'agent_log':
         if (event.agent && state.agents[event.agent]) {
           state.agents[event.agent].output = event.message;
         }
         break;
-
       case 'agent_done':
         if (event.agent && state.agents[event.agent]) {
           const a = state.agents[event.agent];
@@ -504,14 +1084,12 @@
           a.output = event.message || '';
         }
         break;
-
       case 'agent_error':
         if (event.agent && state.agents[event.agent]) {
           state.agents[event.agent].status = 'error';
           state.agents[event.agent].output = event.message;
         }
         break;
-
       case 'swarm_done':
         state.status = event.status === 'error' ? 'error' : 'done';
         break;
@@ -519,15 +1097,10 @@
 
     updateHeader();
     renderTaskList();
-
-    const agentStates = {};
-    Object.entries(state.agents).forEach(([k, v]) => { agentStates[k] = v.status; });
-    renderGraph(state.stages, agentStates, document.getElementById('graph-svg'));
-
+    renderTopo();
     appendLog(event);
   }
 
-  // Connect SSE
   let es = null;
   function connect() {
     es = new EventSource('/events');
@@ -541,6 +1114,162 @@
   }
 
   connect();
+
+  /* ── theme (light "openai" ⇄ dark), persisted; re-renders the active topology
+     view so graph.js re-reads the CSS-var palette ── */
+  let topoView = 'graph';
+  function rerenderGraph() { renderTopo(); }
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    try { localStorage.setItem('swarm-theme', t); } catch {}
+    const b = document.getElementById('theme-toggle');
+    if (b) b.textContent = t === 'dark' ? '☀' : '◐';
+    rerenderGraph();
+  }
+  (function initTheme() {
+    let t = 'openai';
+    try { t = localStorage.getItem('swarm-theme') || 'openai'; } catch {}
+    applyTheme(t);
+  })();
+  document.getElementById('theme-toggle').onclick = () =>
+    applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'openai' : 'dark');
+
+  /* ── TOPOLOGY VIEWS (Graph / Timeline / Tokens / Blueprint) ──
+     All read the same run state; switching is a pure view change. ── */
+  function agentStatesMap() {
+    const m = {};
+    Object.entries(state.agents).forEach(([k, v]) => { m[k] = v.status; });
+    return m;
+  }
+  function orderedAgentNames() {
+    const out = [];
+    (state.stages || []).forEach(s => (s.agents || []).forEach(n => { if (!out.includes(n)) out.push(n); }));
+    Object.keys(state.agents).forEach(n => { if (!out.includes(n)) out.push(n); });
+    return out;
+  }
+  function cssv(n, d) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim() || (d || ''); }
+  function svgEl(t, a) {
+    const e = document.createElementNS('http://www.w3.org/2000/svg', t);
+    for (const k in a) e.setAttribute(k, a[k]);
+    return e;
+  }
+  function svgText(x, y, str, o) {
+    o = o || {};
+    const t = svgEl('text', { x, y, 'text-anchor': o.anchor || 'middle', 'font-size': o.size || 10,
+      fill: o.fill || cssv('--text-secondary'), 'font-family': cssv('--font-code') });
+    t.textContent = str;
+    return t;
+  }
+  function stColor(st) { return cssv({ done:'--color-done', running:'--color-running', error:'--color-error' }[st] || '--text-quaternary'); }
+  function stBg(st)    { return cssv({ done:'--bg-done', running:'--bg-running', error:'--bg-error' }[st] || '--bg-card'); }
+  function setSvgH(svg, H) { svg.style.height = H + 'px'; svg.setAttribute('height', H); }
+  function hideZoom() { const z = document.getElementById('graph-zoom'); if (z) z.style.display = 'none'; }
+
+  function renderTimelineView(svg) {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    const names = orderedAgentNames();
+    const W = svg.clientWidth || 600, rowH = 34, top = 16, padL = 110, padR = 24;
+    const H = Math.max(120, top + names.length * rowH + 10);
+    setSvgH(svg, H); svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    if (!names.length) return;
+    const x0 = padL, x1 = W - padR, span0 = Math.max(1, x1 - x0);
+    const items = names.map(n => { const a = state.agents[n] || {}; return { n, start: a.startedAt || 0, dur: a.elapsed || 0, st: a.status || 'pending' }; });
+    const started = items.filter(i => i.start);
+    const t0 = started.length ? Math.min(...started.map(i => i.start)) : 0;
+    const ends = started.map(i => (i.start - t0) + (i.dur || (i.st === 'running' ? 1500 : 0)));
+    const span = Math.max(1, ends.length ? Math.max(...ends) : 1);
+    items.forEach((it, i) => {
+      const y = top + i * rowH + rowH / 2;
+      svg.appendChild(svgText(padL - 12, y + 3, it.n.length > 13 ? it.n.slice(0, 12) + '…' : it.n, { anchor: 'end', size: 10.5 }));
+      svg.appendChild(svgEl('line', { x1: x0, y1: y, x2: x1, y2: y, stroke: cssv('--border-secondary'), 'stroke-width': 1 }));
+      if (it.start && (it.dur || it.st === 'running')) {
+        const bx = x0 + ((it.start - t0) / span) * span0;
+        const dw = Math.max(10, ((it.dur || 1500) / span) * span0);
+        const rc = svgEl('rect', { x: bx, y: y - 8, width: dw, height: 16, rx: 4, fill: stBg(it.st), stroke: stColor(it.st), 'stroke-width': 1.4 });
+        if (it.st === 'running') { rc.setAttribute('stroke-dasharray', '6 5'); rc.setAttribute('class', 'node-running'); }
+        svg.appendChild(rc);
+        if (it.dur) svg.appendChild(svgText(bx + dw + 8, y + 3, fmtTime(it.dur), { anchor: 'start', size: 9.5, fill: cssv('--text-tertiary') }));
+      } else {
+        svg.appendChild(svgEl('circle', { cx: x0, cy: y, r: 4, fill: 'none', stroke: cssv('--text-quaternary'), 'stroke-width': 1.4 }));
+      }
+    });
+  }
+
+  function renderTokensView(svg) {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    const names = orderedAgentNames();
+    const W = svg.clientWidth || 600, rowH = 36, top = 18, padL = 110, padR = 70;
+    const H = Math.max(120, top + names.length * rowH + 6);
+    setSvgH(svg, H); svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    if (!names.length) return;
+    const x0 = padL, x1 = W - padR, span0 = Math.max(1, x1 - x0);
+    const max = Math.max(1, ...names.map(n => (state.agents[n] || {}).tokens || 0));
+    names.forEach((n, i) => {
+      const a = state.agents[n] || {}, v = a.tokens || 0, st = a.status || 'pending';
+      const y = top + i * rowH + rowH / 2;
+      svg.appendChild(svgText(padL - 12, y + 3, n.length > 13 ? n.slice(0, 12) + '…' : n, { anchor: 'end', size: 10.5 }));
+      svg.appendChild(svgEl('rect', { x: x0, y: y - 10, width: span0, height: 20, rx: 5, fill: cssv('--bg-card-active') }));
+      if (v > 0) svg.appendChild(svgEl('rect', { x: x0, y: y - 10, width: Math.max(6, (v / max) * span0), height: 20, rx: 5, fill: stBg(st), stroke: stColor(st), 'stroke-width': 1.3 }));
+      svg.appendChild(svgText(x0 + (v > 0 ? Math.max(6, (v / max) * span0) : 0) + 9, y + 3, v ? v.toLocaleString() + ' tok' : '—', { anchor: 'start', size: 10, fill: cssv('--text-tertiary') }));
+    });
+  }
+
+  function renderTopo() {
+    const svg = document.getElementById('graph-svg');
+    if (!svg || topoView === 'blueprint') return;
+    if (topoView === 'timeline') { renderTimelineView(svg); hideZoom(); }
+    else if (topoView === 'tokens') { renderTokensView(svg); hideZoom(); }
+    else { renderGraph(state.stages, agentStatesMap(), svg); }  // graph manages its own zoom control
+  }
+
+  function setTopoView(v) {
+    topoView = v;
+    document.querySelectorAll('#topo-seg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+    const svg = document.getElementById('graph-svg'), bp = document.getElementById('blueprint-view');
+    if (v === 'blueprint') { svg.style.display = 'none'; bp.hidden = false; hideZoom(); loadBlueprint(); }
+    else { svg.style.display = 'block'; bp.hidden = true; renderTopo(); }
+  }
+
+  function loadBlueprint() {
+    const pre = document.getElementById('blueprint-view');
+    const name = state.swarmName;
+    if (!name) { pre.textContent = 'No active run — start a swarm to view its blueprint.'; return; }
+    pre.textContent = 'Loading ' + name + '…';
+    fetch('/blueprint/' + encodeURIComponent(name))
+      .then(r => r.ok ? r.text() : Promise.reject())
+      .then(src => { pre.textContent = src; })
+      .catch(() => { pre.textContent = 'Blueprint source not found for: ' + name; });
+  }
+
+  /* ── node-click detail drawer ── */
+  function openAgentDrawer(name) {
+    const a = state.agents[name];
+    if (!a) return;
+    document.getElementById('dw-name').textContent = name;
+    const badge = document.getElementById('dw-badge');
+    badge.textContent = a.status; badge.className = 'dw-badge ' + a.status;
+    document.getElementById('dw-dur').textContent = a.elapsed ? fmtTime(a.elapsed) : (a.status === 'running' ? 'running…' : '—');
+    document.getElementById('dw-tok').textContent = a.tokens ? a.tokens.toLocaleString() + ' tok' : '—';
+    document.getElementById('dw-out').textContent = a.output || '—';
+    document.getElementById('agent-drawer').classList.add('open');
+    document.getElementById('drawer-scrim').classList.add('open');
+  }
+  function closeAgentDrawer() {
+    document.getElementById('agent-drawer').classList.remove('open');
+    document.getElementById('drawer-scrim').classList.remove('open');
+  }
+  document.getElementById('graph-svg').addEventListener('click', e => {
+    const g = e.target.closest('.node');
+    if (g && g.dataset.agent) openAgentDrawer(g.dataset.agent);
+  });
+  document.getElementById('task-list').addEventListener('click', e => {
+    const item = e.target.closest('.task-item');
+    const nm = item && item.querySelector('.task-name');
+    if (nm) openAgentDrawer(nm.textContent.trim());
+  });
+  document.getElementById('dw-close').addEventListener('click', closeAgentDrawer);
+  document.getElementById('drawer-scrim').addEventListener('click', closeAgentDrawer);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAgentDrawer(); });
 
   function resetView() {
     state.swarmName = ''; state.task = ''; state.stages = []; state.agents = {}; state.status = 'idle';
@@ -577,7 +1306,7 @@
     });
     document.getElementById('bottom').style.display = tab === 'live' ? 'grid' : 'none';
     document.getElementById('history-panel').style.display = tab === 'history' ? 'block' : 'none';
-    document.getElementById('library-panel').style.display = tab === 'library' ? 'block' : 'none';
+    document.getElementById('library-panel').style.display = tab === 'library' ? 'flex' : 'none';
     document.getElementById('cost-panel').style.display = tab === 'cost' ? 'block' : 'none';
     document.getElementById('decompose-panel').style.display = tab === 'decompose' ? 'block' : 'none';
 
@@ -607,7 +1336,7 @@
           const td = document.createElement('td');
           td.colSpan = 3;
           td.textContent = 'No token data yet';
-          td.style.cssText = 'color:#484f58;text-align:center;padding:20px';
+          td.style.cssText = 'color:var(--text-quaternary);text-align:center;padding:20px';
           tr.appendChild(td);
           tbody.appendChild(tr);
         } else {
@@ -665,34 +1394,35 @@
         if (!Array.isArray(blueprints) || !blueprints.length) {
           const msg = document.createElement('p');
           msg.textContent = 'No blueprints found in swarms/.';
-          msg.style.color = '#484f58';
+          msg.style.color = 'var(--text-quaternary)';
           list.appendChild(msg);
           return;
         }
 
         blueprints.forEach(bp => {
           const card = document.createElement('div');
-          card.style.cssText = 'border:1px solid #21262d;border-radius:4px;margin-bottom:8px;padding:10px 12px;cursor:pointer;background:#161b22;';
-          card.addEventListener('mouseenter', () => { card.style.borderColor = '#58a6ff66'; });
-          card.addEventListener('mouseleave', () => { card.style.borderColor = '#21262d'; });
+          card.className = 'library-card';
 
           const titleRow = document.createElement('div');
-          titleRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;';
+          titleRow.className = 'library-card-header';
+
           const name = document.createElement('span');
-          name.style.cssText = 'color:#e6edf3;font-weight:600;';
+          name.className = 'library-card-name';
           name.textContent = bp.name;
+
           const version = document.createElement('span');
-          version.style.cssText = 'color:#3fb950;font-size:10px;background:#1c2433;border:1px solid #2a3346;border-radius:3px;padding:1px 6px;';
+          version.className = 'library-card-version';
           version.textContent = 'v' + bp.version;
+
           titleRow.appendChild(name);
           titleRow.appendChild(version);
 
           const desc = document.createElement('div');
-          desc.style.cssText = 'color:#8b949e;font-size:11px;margin-top:4px;';
+          desc.className = 'library-card-desc';
           desc.textContent = bp.description || '(no description)';
 
           const flow = document.createElement('div');
-          flow.style.cssText = 'color:#58a6ff;font-size:10px;margin-top:4px;font-family:inherit;';
+          flow.className = 'library-card-flow';
           flow.textContent = bp.flow || '(no flow)';
 
           card.appendChild(titleRow);
@@ -705,8 +1435,8 @@
   }
 
   function openBlueprint(name, activeCard, list) {
-    Array.from(list.children).forEach(c => { c.style.background = '#161b22'; });
-    activeCard.style.background = '#1f2937';
+    Array.from(list.children).forEach(c => c.classList.remove('selected'));
+    activeCard.classList.add('selected');
     const detail = document.getElementById('library-detail');
     fetch('/blueprint/' + encodeURIComponent(name))
       .then(r => r.ok ? r.text() : Promise.reject())
@@ -725,14 +1455,13 @@
           const td = document.createElement('td');
           td.colSpan = 4;
           td.textContent = 'No runs yet';
-          td.style.cssText = 'color:#484f58;text-align:center;padding:20px';
+          td.style.cssText = 'color:var(--text-quaternary);text-align:center;padding:20px';
           tr.appendChild(td);
           tbody.appendChild(tr);
           return;
         }
         records.forEach(r => {
           const tr = document.createElement('tr');
-          tr.style.cursor = 'pointer';
           tr.addEventListener('click', () => replayRun(r.id));
           [
             r.id,
@@ -760,35 +1489,34 @@
         if (!runs.length) {
           const msg = document.createElement('p');
           msg.textContent = 'No decomposition runs yet. Use /swarm decompose "<goal>" to start one.';
-          msg.style.color = '#484f58';
+          msg.style.color = 'var(--text-quaternary)';
           container.appendChild(msg);
           return;
         }
 
         runs.forEach(r => {
           const section = document.createElement('div');
-          section.style.cssText = 'border:1px solid #21262d;border-radius:4px;margin-bottom:12px;overflow:hidden;';
+          section.className = 'decompose-section';
 
           const header = document.createElement('div');
-          header.style.cssText = 'background:#161b22;padding:8px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;';
+          header.className = 'decompose-header';
 
           const title = document.createElement('span');
-          title.style.color = '#e6edf3';
+          title.className = 'decompose-title';
           title.textContent = r.task;
 
           const meta = document.createElement('span');
-          meta.style.color = '#484f58';
-          meta.style.fontSize = '10px';
+          meta.className = 'decompose-meta';
           meta.textContent = new Date(r.ts).toLocaleString();
 
           header.appendChild(title);
           header.appendChild(meta);
 
           const body = document.createElement('pre');
-          body.style.cssText = 'display:none;padding:12px;font-size:11px;color:#8b949e;white-space:pre-wrap;margin:0;';
+          body.className = 'decompose-body';
 
           header.addEventListener('click', () => {
-            if (body.style.display === 'none') {
+            if (body.style.display === 'none' || !body.style.display) {
               fetch('/output/' + encodeURIComponent(r.file))
                 .then(res => res.ok ? res.text() : Promise.reject())
                 .then(text => { body.textContent = text; body.style.display = 'block'; })
@@ -805,7 +1533,7 @@
       });
   }
 
-  function openRun(file, id) {
+  function openRun(file) {
     fetch('/output/' + encodeURIComponent(file))
       .then(r => r.ok ? r.text() : Promise.reject())
       .then(text => {
@@ -819,6 +1547,7 @@
         el.style.display = 'block';
       });
   }
+
 </script>
 </body>
 </html>

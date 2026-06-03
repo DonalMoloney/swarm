@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swarm · "what's running" — indicator options</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root, [data-theme="light"]{
+  --font:'Inter',-apple-system,sans-serif; --mono:'JetBrains Mono',ui-monospace,monospace;
+  --bg-app:#f7f7f8; --bg-card:#fff; --bg-inset:#f4f4f5;
+  --ink:#0d0d0d; --ink2:#5d5d6b; --ink3:#8e8ea0; --line:#ececf1;
+  /* OpenAI-themed default: running = the green accent, separated from done by MOTION */
+  --run:#10a37f; --run-bg:rgba(16,163,127,0.12); --run-glow:rgba(16,163,127,0.45);
+  --done:#15803d; --done-bg:rgba(21,128,61,0.10);
+  --grid:rgba(13,13,13,0.05);
+}
+[data-theme="dark"]{
+  --bg-app:#0d0d0d; --bg-card:#171717; --bg-inset:#1e1e1e;
+  --ink:#ececec; --ink2:#a8a8b3; --ink3:#70707c; --line:#262626;
+  --run:#19c39c; --run-bg:rgba(25,195,156,0.14); --run-glow:rgba(25,195,156,0.55);
+  --done:#2ea36f; --done-bg:rgba(46,163,111,0.12);
+  --grid:rgba(255,255,255,0.05);
+}
+/* optional second-hue variant (amber) for comparison — NOT the OpenAI default */
+[data-hue="amber"]{
+  --run:#d98a1e; --run-bg:rgba(217,138,30,0.12); --run-glow:rgba(217,138,30,0.5);
+}
+[data-hue="amber"][data-theme="dark"]{
+  --run:#f0b54a; --run-bg:rgba(240,181,74,0.14); --run-glow:rgba(240,181,74,0.6);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--font);background:var(--bg-app);color:var(--ink);-webkit-font-smoothing:antialiased;
+  transition:background .25s,color .25s; padding:40px 32px 80px;}
+.head{max-width:1200px;margin:0 auto 8px;display:flex;align-items:flex-end;gap:16px;}
+.head h1{font-size:24px;font-weight:600;letter-spacing:-0.02em;}
+.head p{color:var(--ink3);font-size:13.5px;margin-top:6px;max-width:680px;line-height:1.6;}
+.head .sp{flex:1;}
+.toggle{width:34px;height:34px;border-radius:9px;background:var(--bg-card);border:1px solid var(--line);
+  color:var(--ink2);font-size:16px;cursor:pointer;}
+.toggle:hover{color:var(--ink);}
+.grid{max-width:1200px;margin:28px auto 0;display:grid;grid-template-columns:repeat(4,1fr);gap:18px;}
+@media(max-width:1000px){.grid{grid-template-columns:repeat(2,1fr);}}
+.cell{background:var(--bg-card);border:1px solid var(--line);border-radius:14px;padding:20px 16px 16px;
+  display:flex;flex-direction:column;align-items:center;}
+.stage{position:relative;width:150px;height:120px;display:grid;place-items:center;border-radius:12px;overflow:hidden;
+  background:
+    radial-gradient(var(--grid) 1px,transparent 1px) 0 0/18px 18px;
+  -webkit-mask-image:radial-gradient(120% 120% at 50% 50%,#000 40%,transparent 90%);
+          mask-image:radial-gradient(120% 120% at 50% 50%,#000 40%,transparent 90%);
+}
+.node-wrap{position:relative;width:80px;height:80px;display:grid;place-items:center;}
+.node{width:80px;height:80px;border-radius:50%;display:grid;place-items:center;
+  background:var(--run-bg);border:2px solid var(--run);position:relative;z-index:2;}
+.node .nm{font-family:var(--mono);font-size:10px;color:var(--run);text-align:center;line-height:1.2;}
+.cap{margin-top:16px;text-align:center;}
+.cap .t{font-size:13.5px;font-weight:600;}
+.cap .d{font-size:11.5px;color:var(--ink3);margin-top:3px;line-height:1.45;min-height:32px;}
+.cap .best{display:inline-block;margin-top:7px;font-size:10px;font-weight:500;color:var(--run);
+  background:var(--run-bg);padding:2px 8px;border-radius:999px;}
+svg{position:absolute;inset:0;width:80px;height:80px;overflow:visible;z-index:1;}
+
+/* 1 · COMET RING — rotating arc sweeping the perimeter (current mock) */
+.comet circle{fill:none;stroke:var(--run);stroke-width:2.4;stroke-linecap:round;
+  stroke-dasharray:34 220;transform-origin:center;animation:spin 1.3s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* 2 · BREATHING GLOW — soft pulsing halo, no rotation. Calmest. */
+.glow .node{animation:breathe 1.8s ease-in-out infinite;}
+@keyframes breathe{0%,100%{box-shadow:0 0 0 0 var(--run-glow);}50%{box-shadow:0 0 16px 3px var(--run-glow);}}
+
+/* 3 · CONIC SPINNER — determinate-looking sweep (classic 'working') */
+.spinner .ring{position:absolute;inset:-6px;border-radius:50%;z-index:1;
+  background:conic-gradient(var(--run) 0deg 90deg, transparent 90deg 360deg);
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));
+          mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));
+  animation:spin 1s linear infinite;}
+
+/* 4 · MARCHING ANTS — node's own dashed border crawls */
+.ants .node{border-style:dashed;}
+.ants .node{background-image:none;}
+.ants svg circle{fill:none;stroke:var(--run);stroke-width:2.4;stroke-dasharray:7 6;
+  animation:march 0.6s linear infinite;}
+@keyframes march{to{stroke-dashoffset:-26;}}
+
+/* 5 · SONAR PING — concentric rings emanate outward */
+.sonar .r{position:absolute;inset:0;margin:auto;width:80px;height:80px;border-radius:50%;
+  border:2px solid var(--run);z-index:1;animation:ping 1.8s ease-out infinite;}
+.sonar .r:nth-child(2){animation-delay:.6s;}
+.sonar .r:nth-child(3){animation-delay:1.2s;}
+@keyframes ping{0%{transform:scale(1);opacity:.6;}100%{transform:scale(1.7);opacity:0;}}
+
+/* 6 · FILLING RING — a timer-style ring fills clockwise, loops */
+.fill svg circle{fill:none;stroke:var(--run);stroke-width:3;stroke-linecap:round;
+  stroke-dasharray:226;transform:rotate(-90deg);transform-origin:center;
+  animation:fillring 1.8s ease-in-out infinite;}
+@keyframes fillring{0%{stroke-dashoffset:226;}55%{stroke-dashoffset:0;}100%{stroke-dashoffset:0;opacity:.15;}}
+
+/* 7 · SHIMMER SWEEP — light passes across the node face */
+.shimmer .node{overflow:hidden;}
+.shimmer .node::after{content:'';position:absolute;inset:0;border-radius:50%;
+  background:linear-gradient(105deg,transparent 30%,var(--run-glow) 50%,transparent 70%);
+  transform:translateX(-120%);animation:sweep 1.6s ease-in-out infinite;}
+@keyframes sweep{0%{transform:translateX(-120%);}60%,100%{transform:translateX(120%);}}
+
+/* 8 · ORBIT DOT — a satellite dot circles the node */
+.orbit .o{position:absolute;inset:-4px;z-index:3;animation:spin 1.4s linear infinite;}
+.orbit .o::before{content:'';position:absolute;top:-3px;left:50%;width:9px;height:9px;margin-left:-4.5px;
+  border-radius:50%;background:var(--run);box-shadow:0 0 8px var(--run-glow);}
+
+/* done reference node for contrast */
+.done .node{background:var(--done-bg);border-color:var(--done);}
+.done .node .nm{color:var(--done);}
+</style>
+</head>
+<body>
+<div class="head">
+  <div>
+    <h1>“What’s running?” — indicator options</h1>
+    <p>Eight ways to mark the live node — <b>OpenAI-themed: monochrome green, separated from “done” by motion, not a second hue</b> (the way ChatGPT marks thinking/streaming). Pills note where each works best — heavy motion shines for one live node but turns to noise when several run at once. The bottom row shows the key contrast: <b>running animates, done is static</b>. Toggle ◑ light/dark, and <b>Hue</b> to compare the off-brand amber variant.</p>
+  </div>
+  <div class="sp"></div>
+  <button class="toggle" id="hue" title="mono (OpenAI) / amber" style="width:auto;padding:0 12px;font-size:12px;">Hue: Mono</button>
+  <button class="toggle" id="t" title="light / dark">◑</button>
+</div>
+
+<div class="grid">
+
+  <div class="cell comet">
+    <div class="stage"><div class="node-wrap">
+      <svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="44"/></svg>
+      <div class="node"><span class="nm">synth…</span></div>
+    </div></div>
+    <div class="cap"><div class="t">1 · Comet ring</div><div class="d">Rotating arc sweeps the rim. Energetic, clearly “in motion.”</div><span class="best">current pick</span></div>
+  </div>
+
+  <div class="cell glow">
+    <div class="stage"><div class="node-wrap">
+      <div class="node"><span class="nm">synth…</span></div>
+    </div></div>
+    <div class="cap"><div class="t">2 · Breathing glow</div><div class="d">Soft pulsing halo, no spin. Calmest; scales to many nodes.</div><span class="best">best for many live</span></div>
+  </div>
+
+  <div class="cell spinner">
+    <div class="stage"><div class="node-wrap">
+      <div class="ring"></div>
+      <div class="node"><span class="nm">synth…</span></div>
+    </div></div>
+    <div class="cap"><div class="t">3 · Conic spinner</div><div class="d">Classic 90° sweep spinner hugging the node. Reads as “working.”</div><span class="best">familiar</span></div>
+  </div>
+
+  <div class="cell ants">
+    <div class="stage"><div class="node-wrap">
+      <svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="39"/></svg>
+      <div class="node" style="border:none;background:var(--run-bg)"><span class="nm">synth…</span></div>
+    </div></div>
+    <div class="cap"><div class="t">4 · Marching ants</div><div class="d">The border itself crawls. Subtle, no glow, very flat/OpenAI.</div><span class="best">most restrained</span></div>
+  </div>
+
+  <div class="cell sonar">
+    <div class="stage"><div class="node-wrap">
+      <span class="r"></span><span class="r"></span><span class="r"></span>
+      <div class="node"><span class="nm">synth…</span></div>
+    </div></div>
+    <div class="cap"><div class="t">5 · Sonar ping</div><div class="d">Rings radiate outward like radar. Highest visibility / attention.</div><span class="best">most eye-catching</span></div>
+  </div>
+
+  <div class="cell fill">
+    <div class="stage"><div class="node-wrap">
+      <svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="36"/></svg>
+      <div class="node" style="border-color:var(--line)"><span class="nm">synth…</span></div>
+    </div></div>
+    <div class="cap"><div class="t">6 · Filling ring</div><div class="d">Ring fills clockwise like a timer. Hints at progress, not just busy.</div><span class="best">implies progress</span></div>
+  </div>
+
+  <div class="cell shimmer">
+    <div class="stage"><div class="node-wrap">
+      <div class="node"><span class="nm">synth…</span></div>
+    </div></div>
+    <div class="cap"><div class="t">7 · Shimmer sweep</div><div class="d">A light streak passes across the face. Quiet, premium feel.</div><span class="best">subtle / premium</span></div>
+  </div>
+
+  <div class="cell orbit">
+    <div class="stage"><div class="node-wrap">
+      <div class="o"></div>
+      <div class="node"><span class="nm">synth…</span></div>
+    </div></div>
+    <div class="cap"><div class="t">8 · Orbit dot</div><div class="d">A satellite dot circles the node. Playful, distinctive.</div><span class="best">distinctive</span></div>
+  </div>
+
+</div>
+
+<div class="grid" style="margin-top:18px;grid-template-columns:1fr;max-width:1200px;">
+  <div class="cell" style="flex-direction:row;justify-content:center;gap:40px;padding:18px;">
+    <div class="comet" style="display:flex;align-items:center;gap:14px;">
+      <div class="node-wrap" style="width:48px;height:48px;">
+        <svg viewBox="0 0 80 80" style="width:48px;height:48px;"><circle cx="40" cy="40" r="44"/></svg>
+        <div class="node" style="width:48px;height:48px;"><span class="nm" style="font-size:8px;">a</span></div>
+      </div>
+      <span style="font-size:12.5px;color:var(--ink2);">running</span>
+    </div>
+    <div class="done" style="display:flex;align-items:center;gap:14px;">
+      <div class="node-wrap" style="width:48px;height:48px;">
+        <div class="node" style="width:48px;height:48px;"><span class="nm">✓</span></div>
+      </div>
+      <span style="font-size:12.5px;color:var(--ink2);">done — static, no motion (the contrast that makes running read)</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const r=document.documentElement;
+document.getElementById('t').onclick=()=>{r.dataset.theme=r.dataset.theme==='dark'?'light':'dark';};
+document.getElementById('hue').onclick=function(){
+  const amber=r.dataset.hue==='amber';
+  r.dataset.hue=amber?'mono':'amber';
+  this.textContent='Hue: '+(amber?'Mono':'Amber');
+};
+</script>
+</body>
+</html>

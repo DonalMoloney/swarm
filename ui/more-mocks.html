@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swarm · more mocks — History · Cost · Library · Editor · Launcher · ⌘K</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ════ shared OpenAI-themed tokens (same system as theme-openai-mocks) ════ */
+:root,[data-theme="light"]{
+  --font:'Inter',-apple-system,sans-serif; --mono:'JetBrains Mono',ui-monospace,monospace;
+  --bg-app:#f7f7f8; --bg-card:#fff; --bg-inset:#f4f4f5;
+  --ink:#0d0d0d; --ink2:#5d5d6b; --ink3:#8e8ea0; --ink4:#b4b4c0;
+  --line:#ececf1; --line2:#e2e2e8;
+  --accent:#10a37f; --accent-text:#0e8e6f; --accent-bg:rgba(16,163,127,0.10);
+  --run:#10a37f; --done:#15803d; --pending:#9aa0a6; --error:#dc2626;
+  --run-bg:rgba(16,163,127,0.10); --done-bg:rgba(21,128,61,0.09); --err-bg:rgba(220,38,38,0.08);
+  --grid:rgba(13,13,13,0.05); --shadow:0 1px 2px rgba(13,13,13,0.05);
+  --bar:rgba(16,163,127,0.55);
+}
+[data-theme="dark"]{
+  --bg-app:#0d0d0d; --bg-card:#171717; --bg-inset:#1e1e1e;
+  --ink:#ececec; --ink2:#a8a8b3; --ink3:#70707c; --ink4:#4a4a52;
+  --line:#262626; --line2:#303030;
+  --accent:#19c39c; --accent-text:#2ad4ab; --accent-bg:rgba(25,195,156,0.14);
+  --run:#19c39c; --done:#2ea36f; --pending:#70707c; --error:#ef6b6b;
+  --run-bg:rgba(25,195,156,0.12); --done-bg:rgba(46,163,111,0.12); --err-bg:rgba(239,107,107,0.12);
+  --grid:rgba(255,255,255,0.05); --shadow:0 1px 2px rgba(0,0,0,0.4);
+  --bar:rgba(25,195,156,0.6);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--font);background:var(--bg-app);color:var(--ink);-webkit-font-smoothing:antialiased;
+  transition:background .25s,color .25s;padding:40px 32px 90px;}
+.page{max-width:1180px;margin:0 auto;}
+.page-head{display:flex;align-items:flex-end;gap:16px;margin-bottom:32px;}
+.page-head h1{font-size:25px;font-weight:600;letter-spacing:-0.02em;}
+.page-head p{color:var(--ink3);font-size:13.5px;margin-top:6px;max-width:620px;line-height:1.6;}
+.sp{flex:1;}
+.toggle{width:34px;height:34px;border-radius:9px;background:var(--bg-card);border:1px solid var(--line2);
+  color:var(--ink2);font-size:16px;cursor:pointer;}
+.toggle:hover{color:var(--ink);}
+
+.scr{margin-bottom:34px;}
+.scr-label{display:flex;align-items:baseline;gap:10px;margin-bottom:12px;}
+.scr-label .n{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text);
+  font-family:var(--mono);}
+.scr-label .t{font-size:15px;font-weight:600;}
+.scr-label .tag{color:var(--ink3);font-size:12.5px;}
+.frame{border-radius:14px;overflow:hidden;border:1px solid var(--line);background:var(--bg-card);box-shadow:0 18px 50px -28px rgba(0,0,0,.55);}
+
+/* mini app chrome reused by some screens */
+.chrome{display:flex;align-items:center;gap:13px;padding:11px 18px;border-bottom:1px solid var(--line);background:var(--bg-card);}
+.logo{width:24px;height:24px;border-radius:6px;background:var(--ink);display:grid;place-items:center;flex-shrink:0;}
+.logo svg{width:14px;height:14px;}
+.nav{display:flex;gap:0;margin-left:8px;}
+.nav .tb{font-size:12.5px;color:var(--ink2);padding:6px 12px;border-bottom:2px solid transparent;cursor:pointer;}
+.nav .tb.on{color:var(--ink);border-bottom-color:var(--ink);font-weight:500;}
+.kbd{font-family:var(--mono);font-size:10.5px;color:var(--ink3);border:1px solid var(--line2);border-radius:5px;padding:1px 6px;}
+
+/* status dot/pill primitives */
+.st{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;}
+.st i{width:7px;height:7px;border-radius:50%;}
+.st.done{color:var(--done);} .st.done i{background:var(--done);}
+.st.run{color:var(--run);} .st.run i{background:transparent;border:1.5px dashed var(--run);width:9px;height:9px;animation:spin 3s linear infinite;}
+.st.fail{color:var(--error);} .st.fail i{background:var(--error);}
+.st.pend{color:var(--pending);} .st.pend i{background:transparent;border:1.5px solid var(--pending);}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.btn{font:inherit;font-size:12.5px;font-weight:500;border:0;border-radius:8px;padding:7px 14px;cursor:pointer;
+  background:var(--accent);color:#fff;}
+.btn.ghost{background:transparent;border:1px solid var(--line2);color:var(--ink2);}
+.btn.sm{padding:5px 11px;font-size:12px;}
+
+/* ════ A · HISTORY ════ */
+.h-head{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);}
+.h-head h3{font-size:14px;font-weight:600;}
+.chips{display:flex;gap:6px;}
+.chip{font-size:12px;color:var(--ink2);background:var(--bg-inset);border:1px solid var(--line);border-radius:999px;padding:4px 11px;cursor:pointer;}
+.chip.on{background:var(--accent-bg);color:var(--accent-text);border-color:transparent;}
+.search{margin-left:auto;display:flex;align-items:center;gap:7px;background:var(--bg-inset);border:1px solid var(--line);
+  border-radius:8px;padding:6px 11px;color:var(--ink3);font-size:12.5px;min-width:180px;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead th{text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;color:var(--ink3);
+  padding:11px 18px;border-bottom:1px solid var(--line);}
+tbody td{padding:13px 18px;border-bottom:1px solid var(--line);color:var(--ink2);}
+tbody tr:hover{background:var(--bg-inset);}
+tbody td .run-id{font-family:var(--mono);color:var(--ink);font-size:12.5px;}
+tbody td .bp{color:var(--ink);font-weight:450;}
+.num{font-family:var(--mono);font-size:12.5px;}
+
+/* ════ B · COST ════ */
+.cost-body{padding:18px;}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px;}
+.stat{background:var(--bg-inset);border:1px solid var(--line);border-radius:11px;padding:14px 16px;}
+.stat .k{font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.03em;}
+.stat .v{font-size:24px;font-weight:600;font-family:var(--mono);margin-top:5px;letter-spacing:-.01em;}
+.stat .d{font-size:11.5px;color:var(--accent-text);margin-top:3px;}
+.cost-cols{display:grid;grid-template-columns:1.4fr 1fr;gap:20px;}
+.panelbox{border:1px solid var(--line);border-radius:11px;padding:15px 16px;}
+.panelbox h4{font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:14px;}
+.barchart{display:flex;align-items:flex-end;gap:10px;height:120px;
+  background:radial-gradient(var(--grid) 1px,transparent 1px) 0 0/16px 16px;padding-top:6px;}
+.barchart .col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;justify-content:flex-end;height:100%;}
+.barchart .bar{width:62%;background:var(--bar);border-radius:5px 5px 0 0;border:1px solid var(--accent);border-bottom:0;}
+.barchart .lbl{font-size:10px;color:var(--ink3);font-family:var(--mono);}
+.breakdown .row{display:flex;align-items:center;gap:10px;margin-bottom:11px;}
+.breakdown .row .nm{font-size:12.5px;width:96px;color:var(--ink2);}
+.breakdown .track{flex:1;height:8px;background:var(--bg-inset);border-radius:999px;overflow:hidden;}
+.breakdown .fill{height:100%;background:var(--bar);border-radius:999px;}
+.breakdown .amt{font-size:12px;font-family:var(--mono);color:var(--ink);width:48px;text-align:right;}
+
+/* ════ C · LIBRARY ════ */
+.lib{padding:18px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.bp-card{border:1px solid var(--line);border-radius:12px;padding:15px;display:flex;flex-direction:column;gap:9px;
+  background:var(--bg-card);transition:border-color .15s,transform .15s;}
+.bp-card:hover{border-color:var(--accent);transform:translateY(-2px);}
+.bp-card .ic{width:32px;height:32px;border-radius:9px;background:var(--accent-bg);color:var(--accent-text);
+  display:grid;place-items:center;font-size:16px;}
+.bp-card .nm{font-size:14px;font-weight:600;}
+.bp-card .ds{font-size:12px;color:var(--ink3);line-height:1.5;flex:1;}
+.bp-card .flow{font-family:var(--mono);font-size:10.5px;color:var(--ink2);background:var(--bg-inset);
+  border:1px solid var(--line);border-radius:7px;padding:6px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bp-card .foot{display:flex;align-items:center;gap:8px;}
+.bp-card .agc{font-size:11px;color:var(--ink3);}
+
+/* ════ D · EDITOR ════ */
+.ed{display:grid;grid-template-columns:1.15fr 1fr;min-height:300px;}
+.ed-code{border-right:1px solid var(--line);background:var(--bg-card);}
+.ed-tab{display:flex;align-items:center;gap:9px;padding:9px 14px;border-bottom:1px solid var(--line);font-size:12px;color:var(--ink2);font-family:var(--mono);}
+.ed-tab .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);}
+.code{font-family:var(--mono);font-size:12px;line-height:1.75;padding:12px 0;}
+.code .ln{display:flex;}
+.code .ln .g{width:34px;text-align:right;padding-right:12px;color:var(--ink4);user-select:none;flex-shrink:0;}
+.code .ln .c{white-space:pre;}
+.code .key{color:var(--accent-text);} .code .str{color:var(--ink);} .code .com{color:var(--ink4);}
+.ed-prev{display:flex;flex-direction:column;}
+.ed-prev .pv-head{padding:9px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;}
+.ed-prev .pv-head h4{font-size:12px;font-weight:600;color:var(--ink2);}
+.valid{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--done);font-weight:500;}
+.ed-canvas{flex:1;position:relative;
+  background:radial-gradient(var(--grid) 1px,transparent 1px) 0 0/18px 18px;}
+.ed-canvas svg{position:absolute;inset:0;width:100%;height:100%;}
+.pv-meta{display:flex;gap:16px;padding:10px 14px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink3);font-family:var(--mono);}
+
+/* ════ modal screens (E launcher, F palette) ════ */
+.modal-stage{position:relative;height:340px;background:radial-gradient(var(--grid) 1px,transparent 1px) 0 0/18px 18px;
+  display:grid;place-items:center;}
+.modal-stage::before{content:'';position:absolute;inset:0;background:rgba(0,0,0,.32);}
+.modal{position:relative;z-index:2;width:440px;max-width:90%;background:var(--bg-card);border:1px solid var(--line2);
+  border-radius:14px;box-shadow:0 24px 60px -20px rgba(0,0,0,.6);overflow:hidden;}
+.modal-head{padding:15px 18px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;}
+.modal-head h3{font-size:14px;font-weight:600;}
+.modal-head .x{margin-left:auto;color:var(--ink3);cursor:pointer;font-size:14px;}
+.modal-body{padding:16px 18px;display:flex;flex-direction:column;gap:14px;}
+.field label{display:block;font-size:11.5px;font-weight:600;color:var(--ink2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.02em;}
+.input{width:100%;background:var(--bg-inset);border:1px solid var(--line2);border-radius:9px;padding:9px 12px;
+  font:inherit;font-size:13px;color:var(--ink);}
+.select{display:flex;align-items:center;gap:8px;}
+.select .pick{flex:1;display:flex;align-items:center;gap:8px;background:var(--bg-inset);border:1px solid var(--line2);
+  border-radius:9px;padding:9px 12px;font-size:13px;}
+.select .pick .car{margin-left:auto;color:var(--ink3);}
+.opts{display:flex;gap:18px;}
+.opt{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink2);}
+.sw{width:34px;height:20px;border-radius:999px;background:var(--accent);position:relative;flex-shrink:0;}
+.sw.off{background:var(--line2);}
+.sw::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.2s;}
+.sw.off::after{left:auto;right:2px;}
+.modal-foot{display:flex;justify-content:flex-end;gap:9px;padding:13px 18px;border-top:1px solid var(--line);}
+
+/* command palette */
+.cmd-search{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);}
+.cmd-search input{flex:1;background:transparent;border:0;outline:0;font:inherit;font-size:15px;color:var(--ink);}
+.cmd-search .car{width:1.5px;height:18px;background:var(--accent);animation:blink 1.1s step-end infinite;}
+@keyframes blink{50%{opacity:0;}}
+.cmd-list{padding:7px;max-height:260px;overflow:auto;}
+.cmd-grp{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);padding:8px 10px 5px;font-weight:600;}
+.cmd{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:13px;color:var(--ink2);cursor:pointer;}
+.cmd.on{background:var(--accent-bg);color:var(--ink);}
+.cmd .ci{width:18px;height:18px;display:grid;place-items:center;color:var(--ink3);font-size:13px;}
+.cmd.on .ci{color:var(--accent-text);}
+.cmd .meta{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink4);}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Swarm — more mocks</h1>
+      <p>Six screens that don’t exist yet, in the same OpenAI-themed system: the nav-bar destinations (History, Cost) and the authoring flow (Library, Editor, Launcher, ⌘K). Monochrome green · faint grid · marching-ants running. Toggle ◑.</p>
+    </div>
+    <div class="sp"></div>
+    <button class="toggle" id="t" title="light / dark">◑</button>
+  </div>
+
+  <!-- ═══════ A · HISTORY ═══════ -->
+  <div class="scr">
+    <div class="scr-label"><span class="n">A</span><span class="t">History</span><span class="tag">— past runs, the dead nav tab made real</span></div>
+    <div class="frame">
+      <div class="chrome">
+        <div class="logo"><svg viewBox="0 0 26 26" fill="none"><polygon points="13,3 22,8 22,18 13,23 4,18 4,8" stroke="#fff" stroke-width="1.4"/><circle cx="13" cy="13" r="2" fill="#fff"/></svg></div>
+        <div class="nav"><span class="tb">Live</span><span class="tb on">History</span><span class="tb">Cost</span></div>
+      </div>
+      <div class="h-head">
+        <h3>Runs</h3>
+        <div class="chips"><span class="chip on">All</span><span class="chip">Done</span><span class="chip">Failed</span><span class="chip">Running</span></div>
+        <div class="search">⌕ search runs…</div>
+      </div>
+      <table>
+        <thead><tr><th>Run</th><th>Blueprint</th><th>Status</th><th>Duration</th><th>Tokens</th><th>Cost</th><th>When</th></tr></thead>
+        <tbody>
+          <tr><td><span class="run-id">#0142</span></td><td><span class="bp">research</span></td><td><span class="st run"><i></i>running</span></td><td class="num">—</td><td class="num">4,040</td><td class="num">$0.21</td><td>just now</td></tr>
+          <tr><td><span class="run-id">#0141</span></td><td><span class="bp">code-review</span></td><td><span class="st done"><i></i>done</span></td><td class="num">38s</td><td class="num">12,180</td><td class="num">$0.64</td><td>6 min ago</td></tr>
+          <tr><td><span class="run-id">#0140</span></td><td><span class="bp">debug</span></td><td><span class="st fail"><i></i>failed</span></td><td class="num">12s</td><td class="num">2,910</td><td class="num">$0.15</td><td>22 min ago</td></tr>
+          <tr><td><span class="run-id">#0139</span></td><td><span class="bp">research</span></td><td><span class="st done"><i></i>done</span></td><td class="num">41s</td><td class="num">9,520</td><td class="num">$0.49</td><td>1 hr ago</td></tr>
+          <tr><td><span class="run-id">#0138</span></td><td><span class="bp">refactor</span></td><td><span class="st done"><i></i>done</span></td><td class="num">1m 04s</td><td class="num">18,640</td><td class="num">$0.97</td><td>2 hr ago</td></tr>
+          <tr><td><span class="run-id">#0137</span></td><td><span class="bp">compound-demo</span></td><td><span class="st done"><i></i>done</span></td><td class="num">27s</td><td class="num">6,300</td><td class="num">$0.33</td><td>3 hr ago</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══════ B · COST ═══════ -->
+  <div class="scr">
+    <div class="scr-label"><span class="n">B</span><span class="t">Cost</span><span class="tag">— all-runs spend (distinct from the per-run “Tokens” lens)</span></div>
+    <div class="frame">
+      <div class="chrome">
+        <div class="logo"><svg viewBox="0 0 26 26" fill="none"><polygon points="13,3 22,8 22,18 13,23 4,18 4,8" stroke="#fff" stroke-width="1.4"/><circle cx="13" cy="13" r="2" fill="#fff"/></svg></div>
+        <div class="nav"><span class="tb">Live</span><span class="tb">History</span><span class="tb on">Cost</span></div>
+      </div>
+      <div class="cost-body">
+        <div class="stats">
+          <div class="stat"><div class="k">Spend · June</div><div class="v">$24.80</div><div class="d">▲ 12% vs May</div></div>
+          <div class="stat"><div class="k">Runs</div><div class="v">142</div><div class="d">38 today</div></div>
+          <div class="stat"><div class="k">Tokens</div><div class="v">1.94M</div><div class="d">~13.6k / run</div></div>
+        </div>
+        <div class="cost-cols">
+          <div class="panelbox">
+            <h4>Spend · last 7 days</h4>
+            <div class="barchart">
+              <div class="col"><div class="bar" style="height:38%"></div><div class="lbl">Mon</div></div>
+              <div class="col"><div class="bar" style="height:54%"></div><div class="lbl">Tue</div></div>
+              <div class="col"><div class="bar" style="height:44%"></div><div class="lbl">Wed</div></div>
+              <div class="col"><div class="bar" style="height:72%"></div><div class="lbl">Thu</div></div>
+              <div class="col"><div class="bar" style="height:61%"></div><div class="lbl">Fri</div></div>
+              <div class="col"><div class="bar" style="height:30%"></div><div class="lbl">Sat</div></div>
+              <div class="col"><div class="bar" style="height:88%"></div><div class="lbl">Sun</div></div>
+            </div>
+          </div>
+          <div class="panelbox breakdown">
+            <h4>By blueprint</h4>
+            <div class="row"><span class="nm">research</span><span class="track"><span class="fill" style="width:82%"></span></span><span class="amt">$9.10</span></div>
+            <div class="row"><span class="nm">code-review</span><span class="track"><span class="fill" style="width:64%"></span></span><span class="amt">$7.05</span></div>
+            <div class="row"><span class="nm">refactor</span><span class="track"><span class="fill" style="width:41%"></span></span><span class="amt">$4.55</span></div>
+            <div class="row"><span class="nm">debug</span><span class="track"><span class="fill" style="width:24%"></span></span><span class="amt">$2.60</span></div>
+            <div class="row"><span class="nm">docs</span><span class="track"><span class="fill" style="width:14%"></span></span><span class="amt">$1.50</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ C · LIBRARY ═══════ -->
+  <div class="scr">
+    <div class="scr-label"><span class="n">C</span><span class="t">Library</span><span class="tag">— blueprint gallery (the /swarm list + /swarm-new entry point)</span></div>
+    <div class="frame">
+      <div class="h-head"><h3>Blueprints</h3><div class="sp" style="flex:1"></div><button class="btn sm">+ New blueprint</button></div>
+      <div class="lib">
+        <div class="bp-card"><div class="ic">⌕</div><div class="nm">research</div><div class="ds">Web research + multi-source synthesis with a reviewer pass.</div><div class="flow">searcher, analyst → synthesiser</div><div class="foot"><span class="agc">3 agents · parallel→seq</span><div class="sp" style="flex:1"></div><button class="btn sm">Run</button></div></div>
+        <div class="bp-card"><div class="ic">⌥</div><div class="nm">code-review</div><div class="ds">Multi-lens PR review: bugs, types, tests, then synthesis.</div><div class="flow">bugs, types, tests → report</div><div class="foot"><span class="agc">4 agents · fan-out</span><div class="sp" style="flex:1"></div><button class="btn sm">Run</button></div></div>
+        <div class="bp-card"><div class="ic">◆</div><div class="nm">debug</div><div class="ds">Reproduce → hypothesize → verify root cause, branch on confidence.</div><div class="flow">repro → if found: fix else: dig</div><div class="foot"><span class="agc">5 agents · conditional</span><div class="sp" style="flex:1"></div><button class="btn sm">Run</button></div></div>
+        <div class="bp-card"><div class="ic">↻</div><div class="nm">refactor</div><div class="ds">Map call-sites, transform each in isolation, verify build.</div><div class="flow">map → transform* → verify</div><div class="foot"><span class="agc">N agents · pipeline</span><div class="sp" style="flex:1"></div><button class="btn sm">Run</button></div></div>
+        <div class="bp-card"><div class="ic">✎</div><div class="nm">docs</div><div class="ds">Draft, fact-check against source, and polish a doc set.</div><div class="flow">draft → check → polish</div><div class="foot"><span class="agc">3 agents · seq</span><div class="sp" style="flex:1"></div><button class="btn sm">Run</button></div></div>
+        <div class="bp-card" style="border-style:dashed;align-items:center;justify-content:center;color:var(--ink3);gap:6px;cursor:pointer;"><div class="ic" style="background:transparent;border:1px dashed var(--line2);color:var(--ink3);">+</div><div class="nm" style="font-weight:500;color:var(--ink2)">New from prompt</div><div class="ds" style="text-align:center;flex:0">Describe a swarm → generate YAML</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ D · EDITOR ═══════ -->
+  <div class="scr">
+    <div class="scr-label"><span class="n">D</span><span class="t">Blueprint editor</span><span class="tag">— YAML on the left, live topology preview on the right</span></div>
+    <div class="frame">
+      <div class="ed">
+        <div class="ed-code">
+          <div class="ed-tab"><span class="dot"></span>research.yaml</div>
+          <div class="code">
+            <div class="ln"><span class="g">1</span><span class="c"><span class="key">name</span>: research</span></div>
+            <div class="ln"><span class="g">2</span><span class="c"><span class="key">flow</span>: <span class="str">"searcher, analyst → synthesiser"</span></span></div>
+            <div class="ln"><span class="g">3</span><span class="c"><span class="key">agents</span>:</span></div>
+            <div class="ln"><span class="g">4</span><span class="c">  <span class="key">searcher</span>:</span></div>
+            <div class="ln"><span class="g">5</span><span class="c">    <span class="key">prompt</span>: <span class="str">"Find primary sources…"</span></span></div>
+            <div class="ln"><span class="g">6</span><span class="c">  <span class="key">analyst</span>:</span></div>
+            <div class="ln"><span class="g">7</span><span class="c">    <span class="key">prompt</span>: <span class="str">"Cluster findings…"</span></span></div>
+            <div class="ln"><span class="g">8</span><span class="c">  <span class="key">synthesiser</span>:</span></div>
+            <div class="ln"><span class="g">9</span><span class="c">    <span class="key">prompt</span>: <span class="str">"Draft a cited report…"</span></span></div>
+            <div class="ln"><span class="g">10</span><span class="c"><span class="com"># ✎ edits re-render the preview →</span></span></div>
+          </div>
+        </div>
+        <div class="ed-prev">
+          <div class="pv-head"><h4>Preview</h4><span class="valid">✓ valid · 2 stages · 3 agents</span></div>
+          <div class="ed-canvas"><svg id="ed-svg" viewBox="0 0 360 220"></svg></div>
+          <div class="pv-meta"><span>stage 1: searcher, analyst</span><span>stage 2: synthesiser</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ E · LAUNCHER ═══════ -->
+  <div class="scr">
+    <div class="scr-label"><span class="n">E</span><span class="t">New-run launcher</span><span class="tag">— pick a blueprint, enter the task, launch</span></div>
+    <div class="frame">
+      <div class="modal-stage">
+        <div class="modal">
+          <div class="modal-head"><h3>New run</h3><span class="x">✕</span></div>
+          <div class="modal-body">
+            <div class="field"><label>Blueprint</label>
+              <div class="select"><div class="pick"><span class="ic" style="width:18px;height:18px;display:grid;place-items:center;color:var(--accent-text)">⌕</span> research <span class="car">▾</span></div></div>
+            </div>
+            <div class="field"><label>Task</label>
+              <textarea class="input" rows="2" style="resize:none">compare leading AI agent frameworks for production use</textarea>
+            </div>
+            <div class="opts">
+              <span class="opt"><span class="sw off"></span> Dry run</span>
+              <span class="opt"><span class="sw"></span> Open dashboard</span>
+              <span class="opt"><span class="sw"></span> Stream logs</span>
+            </div>
+          </div>
+          <div class="modal-foot"><button class="btn ghost">Cancel</button><button class="btn">Launch run ↵</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ F · COMMAND PALETTE ═══════ -->
+  <div class="scr">
+    <div class="scr-label"><span class="n">F</span><span class="t">Command palette</span><span class="tag">— ⌘K: run blueprints, jump views, fire actions</span></div>
+    <div class="frame">
+      <div class="modal-stage">
+        <div class="modal" style="width:480px">
+          <div class="cmd-search">⌕ <input value="re" readonly><span class="car"></span><span class="kbd">esc</span></div>
+          <div class="cmd-list">
+            <div class="cmd-grp">Run blueprint</div>
+            <div class="cmd on"><span class="ci">⌕</span> Run <b style="font-weight:600;color:var(--ink)">re</b>search<span class="meta">↵</span></div>
+            <div class="cmd"><span class="ci">↻</span> Run <b style="font-weight:600;color:var(--ink)">re</b>factor<span class="meta">⌘1</span></div>
+            <div class="cmd-grp">Go to</div>
+            <div class="cmd"><span class="ci">▤</span> History<span class="meta">⌘2</span></div>
+            <div class="cmd"><span class="ci">$</span> Cost<span class="meta">⌘3</span></div>
+            <div class="cmd-grp">Actions</div>
+            <div class="cmd"><span class="ci">+</span> New run…<span class="meta">⌘N</span></div>
+            <div class="cmd"><span class="ci">⌫</span> Clear event stream<span class="meta"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const r=document.documentElement;
+document.getElementById('t').onclick=()=>{r.dataset.theme=r.dataset.theme==='dark'?'light':'dark';drawEd();};
+
+/* tiny live-preview graph for the editor screen */
+const NS='http://www.w3.org/2000/svg';
+function cv(n){return getComputedStyle(r).getPropertyValue(n).trim();}
+function drawEd(){
+  const svg=document.getElementById('ed-svg'); if(!svg) return;
+  while(svg.firstChild) svg.removeChild(svg.firstChild);
+  const mk=(t,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
+  const accent=cv('--accent'), line=cv('--line2'), ink=cv('--ink2'), card=cv('--bg-card');
+  // stage1: searcher (60,70), analyst (60,150); stage2: synthesiser (270,110)
+  const nodes=[['searcher',60,70],['analyst',60,150],['synthesiser',270,110]];
+  // edges
+  [[60,70,270,110],[60,150,270,110]].forEach(([x1,y1,x2,y2])=>{
+    svg.appendChild(mk('line',{x1:x1+34,y1,x2:x2-34,y2,stroke:accent,'stroke-width':1.4}));
+  });
+  nodes.forEach(([nm,x,y])=>{
+    svg.appendChild(mk('circle',{cx:x,cy:y,r:30,fill:card,stroke:accent,'stroke-width':1.6}));
+    const t=mk('text',{x,y:y+3,'text-anchor':'middle','font-size':9,fill:ink,'font-family':'monospace'});
+    t.textContent=nm.length>9?nm.slice(0,8)+'…':nm; svg.appendChild(t);
+  });
+}
+drawEd();
+</script>
+</body>
+</html>
