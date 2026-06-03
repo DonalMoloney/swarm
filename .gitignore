@@ -7,3 +7,4 @@ swarms/audit.jsonl
 node_modules/
 mock-dashboard.html
 slides/*.pptx
+swarm.config.json
