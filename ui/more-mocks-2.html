@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swarm · more mocks 2 — Settings · Empty · Failure · Split · Replay · Decompose</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="light"]{
+  --font:'Inter',-apple-system,sans-serif; --mono:'JetBrains Mono',ui-monospace,monospace;
+  --bg-app:#f7f7f8; --bg-card:#fff; --bg-inset:#f4f4f5;
+  --ink:#0d0d0d; --ink2:#5d5d6b; --ink3:#8e8ea0; --ink4:#b4b4c0;
+  --line:#ececf1; --line2:#e2e2e8;
+  --accent:#10a37f; --accent-text:#0e8e6f; --accent-bg:rgba(16,163,127,0.10);
+  --run:#10a37f; --done:#15803d; --pending:#9aa0a6; --error:#dc2626;
+  --run-bg:rgba(16,163,127,0.10); --done-bg:rgba(21,128,61,0.09); --err-bg:rgba(220,38,38,0.08);
+  --glow-err:rgba(220,38,38,0.40);
+  --grid:rgba(13,13,13,0.05); --bar:rgba(16,163,127,0.55);
+}
+[data-theme="dark"]{
+  --bg-app:#0d0d0d; --bg-card:#171717; --bg-inset:#1e1e1e;
+  --ink:#ececec; --ink2:#a8a8b3; --ink3:#70707c; --ink4:#4a4a52;
+  --line:#262626; --line2:#303030;
+  --accent:#19c39c; --accent-text:#2ad4ab; --accent-bg:rgba(25,195,156,0.14);
+  --run:#19c39c; --done:#2ea36f; --pending:#70707c; --error:#ef6b6b;
+  --run-bg:rgba(25,195,156,0.12); --done-bg:rgba(46,163,111,0.12); --err-bg:rgba(239,107,107,0.12);
+  --glow-err:rgba(239,107,107,0.45);
+  --grid:rgba(255,255,255,0.05); --bar:rgba(25,195,156,0.6);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--font);background:var(--bg-app);color:var(--ink);-webkit-font-smoothing:antialiased;
+  transition:background .25s,color .25s;padding:40px 32px 90px;}
+.page{max-width:1180px;margin:0 auto;}
+.page-head{display:flex;align-items:flex-end;gap:16px;margin-bottom:32px;}
+.page-head h1{font-size:25px;font-weight:600;letter-spacing:-0.02em;}
+.page-head p{color:var(--ink3);font-size:13.5px;margin-top:6px;max-width:640px;line-height:1.6;}
+.sp{flex:1;}
+.toggle{width:34px;height:34px;border-radius:9px;background:var(--bg-card);border:1px solid var(--line2);color:var(--ink2);font-size:16px;cursor:pointer;}
+.toggle:hover{color:var(--ink);}
+.scr{margin-bottom:34px;}
+.scr-label{display:flex;align-items:baseline;gap:10px;margin-bottom:12px;}
+.scr-label .n{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text);font-family:var(--mono);}
+.scr-label .t{font-size:15px;font-weight:600;}
+.scr-label .tag{color:var(--ink3);font-size:12.5px;}
+.frame{border-radius:14px;overflow:hidden;border:1px solid var(--line);background:var(--bg-card);box-shadow:0 18px 50px -28px rgba(0,0,0,.55);}
+.chrome{display:flex;align-items:center;gap:13px;padding:11px 18px;border-bottom:1px solid var(--line);}
+.logo{width:24px;height:24px;border-radius:6px;background:var(--ink);display:grid;place-items:center;flex-shrink:0;}
+.logo svg{width:14px;height:14px;}
+.nav{display:flex;margin-left:8px;}
+.nav .tb{font-size:12.5px;color:var(--ink2);padding:6px 12px;border-bottom:2px solid transparent;cursor:pointer;}
+.nav .tb.on{color:var(--ink);border-bottom-color:var(--ink);font-weight:500;}
+.btn{font:inherit;font-size:12.5px;font-weight:500;border:0;border-radius:8px;padding:7px 14px;cursor:pointer;background:var(--accent);color:#fff;}
+.btn.ghost{background:transparent;border:1px solid var(--line2);color:var(--ink2);}
+.btn.sm{padding:5px 11px;font-size:12px;}
+.btn.danger{background:var(--err-bg);color:var(--error);}
+.st{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;}
+.st i{width:8px;height:8px;border-radius:50%;}
+.st.done{color:var(--done);} .st.done i{background:var(--done);}
+.st.run{color:var(--run);} .st.run i{background:transparent;border:1.5px dashed var(--run);width:10px;height:10px;animation:spin 3s linear infinite;}
+.st.fail{color:var(--error);} .st.fail i{background:var(--error);}
+.st.pend{color:var(--pending);} .st.pend i{background:transparent;border:1.5px solid var(--pending);}
+@keyframes spin{to{transform:rotate(360deg);}}
+.sw{width:34px;height:20px;border-radius:999px;background:var(--accent);position:relative;flex-shrink:0;cursor:pointer;}
+.sw.off{background:var(--line2);}
+.sw::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.2s;}
+.sw.off::after{left:auto;right:2px;}
+.input{background:var(--bg-inset);border:1px solid var(--line2);border-radius:9px;padding:8px 11px;font:inherit;font-size:13px;color:var(--ink);}
+.seg{display:inline-flex;background:var(--bg-inset);border:1px solid var(--line);border-radius:9px;padding:2px;}
+.seg b{font-size:12px;font-weight:450;color:var(--ink2);padding:4px 12px;border-radius:7px;cursor:pointer;}
+.seg b.on{background:var(--bg-card);color:var(--ink);font-weight:500;box-shadow:0 1px 2px rgba(0,0,0,.15);}
+canvas,svg{display:block;}
+
+/* A · SETTINGS */
+.set{display:grid;grid-template-columns:180px 1fr;min-height:340px;}
+.set-rail{border-right:1px solid var(--line);padding:14px 10px;background:var(--bg-card);}
+.set-rail .it{font-size:12.5px;color:var(--ink2);padding:8px 11px;border-radius:8px;cursor:pointer;margin-bottom:2px;}
+.set-rail .it.on{background:var(--accent-bg);color:var(--accent-text);font-weight:500;}
+.set-body{padding:20px 22px;overflow:auto;}
+.set-sec{margin-bottom:24px;}
+.set-sec h4{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink3);margin-bottom:14px;}
+.frow{display:flex;align-items:center;gap:14px;padding:11px 0;border-bottom:1px solid var(--line);}
+.frow .lab{flex:1;}
+.frow .lab .k{font-size:13px;font-weight:450;}
+.frow .lab .d{font-size:11.5px;color:var(--ink3);margin-top:2px;}
+.mono{font-family:var(--mono);}
+
+/* B · EMPTY */
+.empty{position:relative;height:340px;display:grid;place-items:center;text-align:center;
+  background:radial-gradient(var(--grid) 1px,transparent 1px) 0 0/20px 20px;}
+.empty .inner{position:relative;z-index:2;max-width:360px;}
+.empty .ghost{margin:0 auto 18px;}
+.empty h3{font-size:18px;font-weight:600;}
+.empty p{font-size:13px;color:var(--ink3);margin:8px 0 18px;line-height:1.6;}
+.empty .row{display:flex;gap:10px;justify-content:center;}
+
+/* C · FAILURE */
+.fail-head{display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid var(--line);}
+.fail-head .rid{font-family:var(--mono);font-size:13px;}
+.fail-head .bp{color:var(--ink2);font-size:13px;}
+.fail-body{display:grid;grid-template-columns:1fr 1fr;}
+.fail-canvas{position:relative;border-right:1px solid var(--line);height:240px;
+  background:radial-gradient(var(--grid) 1px,transparent 1px) 0 0/18px 18px;}
+.fail-canvas svg{position:absolute;inset:0;width:100%;height:100%;}
+.fail-detail{padding:16px 18px;}
+.err-box{background:var(--err-bg);border:1px solid color-mix(in srgb,var(--error) 30%,transparent);border-radius:10px;padding:12px 14px;margin-bottom:14px;}
+.err-box .et{font-size:12.5px;font-weight:600;color:var(--error);display:flex;align-items:center;gap:7px;}
+.err-box .em{font-size:12px;color:var(--ink2);margin-top:6px;line-height:1.5;}
+.trace{font-family:var(--mono);font-size:11px;line-height:1.7;color:var(--ink3);background:var(--bg-inset);border:1px solid var(--line);border-radius:9px;padding:10px 12px;white-space:pre;overflow:auto;margin-bottom:14px;}
+.fail-acts{display:flex;gap:8px;}
+
+/* D · SPLIT + E · REPLAY shared topo header */
+.topo-head{display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid var(--line);}
+.topo-head h3{font-size:13px;font-weight:600;}
+.split{display:grid;grid-template-columns:1fr 1fr;height:240px;}
+.split .pane{position:relative;background:radial-gradient(var(--grid) 1px,transparent 1px) 0 0/18px 18px;}
+.split .pane+.pane{border-left:1px solid var(--line);}
+.split .pane .ptag{position:absolute;top:8px;left:10px;font-size:10.5px;color:var(--ink3);font-family:var(--mono);
+  background:var(--bg-card);border:1px solid var(--line);border-radius:6px;padding:2px 7px;z-index:2;}
+.split .pane svg{position:absolute;inset:0;width:100%;height:100%;}
+
+/* E · REPLAY scrubber */
+.replay-canvas{position:relative;height:220px;background:radial-gradient(var(--grid) 1px,transparent 1px) 0 0/18px 18px;}
+.replay-canvas svg{position:absolute;inset:0;width:100%;height:100%;}
+.scrub{display:flex;align-items:center;gap:14px;padding:12px 18px;border-top:1px solid var(--line);}
+.play{width:30px;height:30px;border-radius:8px;background:var(--accent);color:#fff;display:grid;place-items:center;cursor:pointer;flex-shrink:0;}
+.track{flex:1;height:6px;background:var(--bg-inset);border-radius:999px;position:relative;}
+.track .done-fill{position:absolute;inset:0;width:60%;background:var(--bar);border-radius:999px;}
+.track .head{position:absolute;left:60%;top:50%;transform:translate(-50%,-50%);width:14px;height:14px;border-radius:50%;background:var(--accent);border:2px solid var(--bg-card);box-shadow:0 1px 4px rgba(0,0,0,.4);}
+.track .tick{position:absolute;top:-3px;width:1.5px;height:12px;background:var(--line2);}
+.scrub .tt{font-family:var(--mono);font-size:12px;color:var(--ink2);flex-shrink:0;}
+.scrub .spd{font-size:11.5px;color:var(--ink3);border:1px solid var(--line2);border-radius:6px;padding:3px 8px;cursor:pointer;}
+
+/* F · DECOMPOSE */
+.dec{padding:18px;}
+.dec .goal{display:flex;align-items:center;gap:10px;background:var(--bg-inset);border:1px solid var(--line2);border-radius:11px;padding:11px 14px;margin-bottom:18px;}
+.dec .goal .gl{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink3);font-weight:600;}
+.dec .goal .gv{font-size:13.5px;}
+.steps{display:flex;align-items:stretch;gap:0;overflow:auto;padding-bottom:4px;}
+.step{min-width:188px;flex:1;background:var(--bg-card);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;}
+.step .sh{display:flex;align-items:center;gap:8px;}
+.step .sn{width:22px;height:22px;border-radius:7px;background:var(--accent-bg);color:var(--accent-text);font-size:11px;font-weight:600;display:grid;place-items:center;font-family:var(--mono);}
+.step .snm{font-size:13.5px;font-weight:600;}
+.step .sd{font-size:11.5px;color:var(--ink3);line-height:1.5;flex:1;}
+.step .sf{font-family:var(--mono);font-size:10px;color:var(--ink2);background:var(--bg-inset);border:1px solid var(--line);border-radius:6px;padding:4px 7px;}
+.arrow{display:flex;align-items:center;color:var(--ink4);font-size:18px;padding:0 8px;flex-shrink:0;}
+.dec-foot{display:flex;align-items:center;gap:12px;margin-top:18px;}
+.dec-foot .est{font-size:12px;color:var(--ink3);font-family:var(--mono);}
+
+/* G · TOASTS */
+.toast-stage{position:relative;height:230px;background:radial-gradient(var(--grid) 1px,transparent 1px) 0 0/18px 18px;}
+.toasts{position:absolute;right:16px;bottom:16px;display:flex;flex-direction:column;gap:10px;width:300px;}
+.toast{display:flex;align-items:flex-start;gap:10px;background:var(--bg-card);border:1px solid var(--line2);border-radius:11px;padding:11px 13px;box-shadow:0 10px 26px -12px rgba(0,0,0,.5);}
+.toast .ic{width:20px;height:20px;border-radius:6px;display:grid;place-items:center;font-size:12px;flex-shrink:0;}
+.toast.ok .ic{background:var(--done-bg);color:var(--done);}
+.toast.err .ic{background:var(--err-bg);color:var(--error);}
+.toast.warn .ic{background:var(--accent-bg);color:var(--accent-text);}
+.toast .tx{flex:1;}
+.toast .tt{font-size:12.5px;font-weight:500;}
+.toast .ts{font-size:11.5px;color:var(--ink3);margin-top:2px;}
+.toast .tk{font-family:var(--mono);font-size:11px;color:var(--ink3);}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Swarm — more mocks · 2</h1>
+      <p>Operational + planning surfaces: configuration, the zero-state, what failure looks like, the split-view from the topology <b>+</b>, replaying a finished run, and decomposing a goal into a sequence of swarms. Same green system. Toggle ◑.</p>
+    </div>
+    <div class="sp"></div>
+    <button class="toggle" id="t" title="light / dark">◑</button>
+  </div>
+
+  <!-- A · SETTINGS -->
+  <div class="scr">
+    <div class="scr-label"><span class="n">A</span><span class="t">Settings</span><span class="tag">— port, theme, default model, cost caps, notifications</span></div>
+    <div class="frame">
+      <div class="set">
+        <div class="set-rail">
+          <div class="it on">General</div><div class="it">Models</div><div class="it">Cost caps</div><div class="it">Notifications</div><div class="it">Plugin</div>
+        </div>
+        <div class="set-body">
+          <div class="set-sec">
+            <h4>General</h4>
+            <div class="frow"><div class="lab"><div class="k">Dashboard port</div><div class="d">Auto-finds a free port from this value upward.</div></div><input class="input mono" style="width:90px" value="7700"></div>
+            <div class="frow"><div class="lab"><div class="k">Theme</div><div class="d">Follows system by default.</div></div><div class="seg"><b>Light</b><b>Dark</b><b class="on">System</b></div></div>
+            <div class="frow"><div class="lab"><div class="k">Auto-open dashboard</div><div class="d">Open the browser when a swarm starts.</div></div><div class="sw"></div></div>
+          </div>
+          <div class="set-sec">
+            <h4>Models · Cost caps</h4>
+            <div class="frow"><div class="lab"><div class="k">Default model</div><div class="d">Agents inherit unless overridden in the blueprint.</div></div><input class="input mono" style="width:180px" value="claude-opus-4-8"></div>
+            <div class="frow"><div class="lab"><div class="k">Per-run cap</div><div class="d">Halt the swarm if estimated spend exceeds this.</div></div><input class="input mono" style="width:90px" value="$2.00"></div>
+            <div class="frow"><div class="lab"><div class="k">Notify on complete / error</div><div class="d">Desktop notification when a run ends.</div></div><div style="display:flex;gap:10px"><div class="sw"></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- B · EMPTY -->
+  <div class="scr">
+    <div class="scr-label"><span class="n">B</span><span class="t">Empty state</span><span class="tag">— first launch, no runs yet</span></div>
+    <div class="frame">
+      <div class="chrome"><div class="logo"><svg viewBox="0 0 26 26" fill="none"><polygon points="13,3 22,8 22,18 13,23 4,18 4,8" stroke="#fff" stroke-width="1.4"/><circle cx="13" cy="13" r="2" fill="#fff"/></svg></div><div class="nav"><span class="tb on">Live</span><span class="tb">History</span><span class="tb">Cost</span></div></div>
+      <div class="empty">
+        <div class="inner">
+          <svg class="ghost" width="150" height="80" viewBox="0 0 150 80" fill="none">
+            <line x1="42" y1="40" x2="92" y2="22" stroke="currentColor" stroke-width="1.3" stroke-dasharray="4 4" opacity=".3"/>
+            <line x1="42" y1="40" x2="92" y2="58" stroke="currentColor" stroke-width="1.3" stroke-dasharray="4 4" opacity=".3"/>
+            <circle cx="30" cy="40" r="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 4" opacity=".5"/>
+            <circle cx="105" cy="22" r="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 4" opacity=".4"/>
+            <circle cx="105" cy="58" r="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 4" opacity=".4"/>
+          </svg>
+          <h3>No runs yet</h3>
+          <p>Kick off a swarm from a blueprint and watch agents work in real time. Your run history and costs will show up here.</p>
+          <div class="row"><button class="btn">New run</button><button class="btn ghost">Browse blueprints</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- C · FAILURE -->
+  <div class="scr">
+    <div class="scr-label"><span class="n">C</span><span class="t">Failed run</span><span class="tag">— one node errors; retry from the failed stage</span></div>
+    <div class="frame">
+      <div class="fail-head">
+        <span class="rid">#0140</span><span class="bp">debug</span><span class="st fail"><i></i>failed</span>
+        <div class="sp" style="flex:1"></div><span class="st" style="color:var(--ink3)">12s · 2,910 tok</span>
+      </div>
+      <div class="fail-body">
+        <div class="fail-canvas"><svg id="fail-svg" viewBox="0 0 360 240"></svg></div>
+        <div class="fail-detail">
+          <div class="err-box">
+            <div class="et">✕ verifier — TypeError</div>
+            <div class="em">Cannot read properties of undefined (reading 'confidence') — agent returned malformed JSON contract.</div>
+          </div>
+          <div class="trace">at parseContract (runtime/contract.js:48)
+at verifier.onDone (runtime/agent.js:212)
+at Stage.settle (runtime/compiler.js:331)</div>
+          <div class="fail-acts">
+            <button class="btn">↻ Retry from failed stage</button>
+            <button class="btn ghost">Retry run</button>
+            <button class="btn ghost">View logs</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- D · SPLIT -->
+  <div class="scr">
+    <div class="scr-label"><span class="n">D</span><span class="t">Split view</span><span class="tag">— the topology <b>+</b> realized: Graph &amp; Timeline together</span></div>
+    <div class="frame">
+      <div class="topo-head">
+        <h3>Topology</h3>
+        <div class="seg"><b>Graph</b><b>Timeline</b><b>Tokens</b><b>Flow</b></div>
+        <div class="sp" style="flex:1"></div>
+        <span class="st" style="color:var(--accent-text)">⊟ split · Graph + Timeline</span>
+      </div>
+      <div class="split">
+        <div class="pane"><span class="ptag">Graph</span><svg id="split-graph" viewBox="0 0 320 240"></svg></div>
+        <div class="pane"><span class="ptag">Timeline</span><svg id="split-time" viewBox="0 0 320 240"></svg></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- E · REPLAY -->
+  <div class="scr">
+    <div class="scr-label"><span class="n">E</span><span class="t">Run replay</span><span class="tag">— scrub a finished run; topology reflects each moment</span></div>
+    <div class="frame">
+      <div class="topo-head"><h3>Replaying <span class="mono" style="color:var(--ink2)">#0139 · research</span></h3><div class="sp" style="flex:1"></div><span class="st done"><i></i>done · 41s</span></div>
+      <div class="replay-canvas"><svg id="replay-svg" viewBox="0 0 360 220"></svg></div>
+      <div class="scrub">
+        <div class="play">▮▮</div>
+        <span class="tt">0:24</span>
+        <div class="track"><div class="done-fill"></div><div class="tick" style="left:18%"></div><div class="tick" style="left:55%"></div><div class="head"></div></div>
+        <span class="tt" style="color:var(--ink3)">0:41</span>
+        <span class="spd">1×</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- F · DECOMPOSE -->
+  <div class="scr">
+    <div class="scr-label"><span class="n">F</span><span class="t">Decompose planner</span><span class="tag">— a goal → an ordered sequence of swarm runs (/swarm-decompose)</span></div>
+    <div class="frame">
+      <div class="dec">
+        <div class="goal"><span class="gl">Goal</span><span class="gv">Ship a v2 of the auth system with passkeys</span><div class="sp" style="flex:1"></div><button class="btn sm ghost">Re-plan</button></div>
+        <div class="steps">
+          <div class="step"><div class="sh"><span class="sn">1</span><span class="snm">research</span></div><div class="sd">Survey passkey/WebAuthn approaches & tradeoffs.</div><div class="sf">searcher, analyst → synth</div></div>
+          <div class="arrow">→</div>
+          <div class="step"><div class="sh"><span class="sn">2</span><span class="snm">design</span></div><div class="sd">Propose 3 architectures, score, pick one.</div><div class="sf">panel → judge → spec</div></div>
+          <div class="arrow">→</div>
+          <div class="step"><div class="sh"><span class="sn">3</span><span class="snm">implement</span></div><div class="sd">Build per spec across modules in isolation.</div><div class="sf">map → build* → verify</div></div>
+          <div class="arrow">→</div>
+          <div class="step"><div class="sh"><span class="sn">4</span><span class="snm">code-review</span></div><div class="sd">Multi-lens review, adversarial verify, fix.</div><div class="sf">bugs, sec, tests → fix</div></div>
+        </div>
+        <div class="dec-foot"><button class="btn">▶ Run sequence</button><span class="est">4 swarms · ~6 min · est. $3.40</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- G · TOASTS -->
+  <div class="scr">
+    <div class="scr-label"><span class="n">G</span><span class="t">Notifications</span><span class="tag">— run complete · failed · cost-cap warning</span></div>
+    <div class="frame">
+      <div class="toast-stage">
+        <div class="toasts">
+          <div class="toast warn"><div class="ic">⚠</div><div class="tx"><div class="tt">Approaching cost cap</div><div class="ts">research #0142 at $1.60 of $2.00.</div></div></div>
+          <div class="toast err"><div class="ic">✕</div><div class="tx"><div class="tt">debug #0140 failed</div><div class="ts">verifier — TypeError at stage 2.</div></div><div class="tk">12s</div></div>
+          <div class="toast ok"><div class="ic">✓</div><div class="tx"><div class="tt">research #0139 complete</div><div class="ts">3 agents · 9,520 tok · $0.49.</div></div><div class="tk">41s</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const r=document.documentElement;
+const NS='http://www.w3.org/2000/svg';
+const cv=n=>getComputedStyle(r).getPropertyValue(n).trim();
+const mk=(t,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
+
+/* shared 3-stage research graph with per-agent states */
+function drawGraph(id,states,W=360,H=240){
+  const svg=document.getElementById(id); if(!svg) return;
+  while(svg.firstChild)svg.removeChild(svg.firstChild);
+  const R=30, accent=cv('--accent');
+  const pos={searcher:[70,80],analyst:[70,160],synthesiser:[270,90],reviewer:[270,170]};
+  // scale to viewBox via attribute already 360x240 (or 320 for split) — recompute x for width
+  const sx=W/360;
+  const P={};Object.entries(pos).forEach(([k,[x,y]])=>P[k]=[x*sx,y]);
+  const edges=[['searcher','synthesiser'],['analyst','synthesiser'],['searcher','reviewer'],['analyst','reviewer']];
+  edges.forEach(([a,b])=>{const[x1,y1]=P[a],[x2,y2]=P[b];const act=states[a]==='done'||states[a]==='running';
+    svg.appendChild(mk('line',{x1:x1+R,y1,x2:x2-R,y2,stroke:act?accent:cv('--line2'),'stroke-width':act?1.5:1.2}));});
+  Object.entries(P).forEach(([nm,[x,y]])=>{
+    const st=states[nm]||'pending';
+    const col={done:cv('--done'),running:cv('--run'),error:cv('--error'),pending:cv('--pending')}[st];
+    const bg={done:cv('--done-bg'),running:cv('--run-bg'),error:cv('--err-bg'),pending:cv('--bg-card')}[st];
+    const c=mk('circle',{cx:x,cy:y,r:R,fill:bg,stroke:col,'stroke-width':st==='running'?2:1.6});
+    if(st==='running'){c.setAttribute('stroke-dasharray','6 5');c.setAttribute('class','march');}
+    if(st==='error')c.style.filter=`drop-shadow(0 0 6px ${cv('--glow-err')})`;
+    svg.appendChild(c);
+    const t=mk('text',{x,y:y-1,'text-anchor':'middle','font-size':9,fill:col,'font-family':'monospace'});
+    t.textContent=nm.length>9?nm.slice(0,8)+'…':nm; svg.appendChild(t);
+    const s=mk('text',{x,y:y+12,'text-anchor':'middle','font-size':8,fill:cv('--ink3'),'font-family':'monospace'});
+    s.textContent = st==='done'?'✓':st==='error'?'✕':st==='running'?'…':'○'; svg.appendChild(s);
+  });
+}
+function drawTimeline(id){
+  const svg=document.getElementById(id); if(!svg) return;
+  while(svg.firstChild)svg.removeChild(svg.firstChild);
+  const rows=[['searcher',0,2.4,'done'],['analyst',2.4,3.1,'done'],['synth',5.5,1.2,'running'],['review',6.7,0,'pending']];
+  const tot=8,x0=70,x1=300,span=x1-x0,top=40,rowH=42;
+  rows.forEach((rw,i)=>{const[nm,s,d,st]=rw;const y=top+i*rowH;
+    const col={done:cv('--done'),running:cv('--run'),pending:cv('--pending')}[st];
+    const bg={done:cv('--done-bg'),running:cv('--run-bg'),pending:cv('--bg-card')}[st];
+    const lab=mk('text',{x:x0-10,y:y+3,'text-anchor':'end','font-size':10,fill:cv('--ink2'),'font-family':'monospace'});lab.textContent=nm;svg.appendChild(lab);
+    svg.appendChild(mk('line',{x1:x0,y1:y,x2:x1,y2:y,stroke:cv('--line'),'stroke-width':1}));
+    if(d>0){const bx=x0+(s/tot)*span,bw=Math.max(10,(d/tot)*span);
+      const rc=mk('rect',{x:bx,y:y-8,width:bw,height:16,rx:4,fill:bg,stroke:col,'stroke-width':1.4});
+      if(st==='running'){rc.setAttribute('stroke-dasharray','6 5');rc.setAttribute('class','march');}
+      svg.appendChild(rc);}
+    else svg.appendChild(mk('circle',{cx:x0,cy:y,r:4,fill:'none',stroke:cv('--pending'),'stroke-width':1.4}));
+  });
+}
+function drawAll(){
+  drawGraph('fail-svg',{searcher:'done',analyst:'done',synthesiser:'error',reviewer:'pending'});
+  drawGraph('split-graph',{searcher:'done',analyst:'done',synthesiser:'running',reviewer:'pending'},320,240);
+  drawTimeline('split-time');
+  drawGraph('replay-svg',{searcher:'done',analyst:'running',synthesiser:'pending',reviewer:'pending'},360,220);
+}
+document.getElementById('t').onclick=()=>{r.dataset.theme=r.dataset.theme==='dark'?'light':'dark';drawAll();};
+// marching-ants for any svg circle/rect.march
+const style=document.createElement('style');
+style.textContent='#fail-svg .march,#split-graph .march,#replay-svg .march,#split-time .march{animation:spinm .6s linear infinite}@keyframes spinm{to{stroke-dashoffset:-22}}';
+document.head.appendChild(style);
+drawAll();
+</script>
+</body>
+</html>

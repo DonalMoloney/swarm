@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swarm · OpenAI-flavored light + dark, with faint topology views</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ════════════════════════════════════════════════════════════════════
+   OPENAI-FLAVORED TOKENS — one variable set per mode.
+   This mirrors how ui/graph.js already works: every color is a CSS var,
+   so "the theme" is purely this block. Same markup, two retunes.
+
+   Language (both modes):
+     · near-monochrome ink, ONE accent (OpenAI green #10a37f)
+     · hairline borders, no neon glow — depth from whitespace + faint texture
+     · Inter for UI, JetBrains Mono for logs/metrics only
+   ════════════════════════════════════════════════════════════════════ */
+
+:root,
+[data-theme="light"] {
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* accent — the single non-grey */
+  --accent:        #10a37f;
+  --accent-text:   #0e8e6f;
+  --accent-dim:    rgba(16,163,127,0.10);
+
+  /* surfaces */
+  --bg-app:        #f7f7f8;   /* page */
+  --bg-card:       #ffffff;   /* panels */
+  --bg-inset:      #f4f4f5;   /* log well, segmented bg */
+  --bg-running:    rgba(16,163,127,0.09);
+  --bg-done:       rgba(21,128,61,0.08);
+  --bg-error:      rgba(220,38,38,0.07);
+  --bg-pending:    transparent;
+
+  /* ink */
+  --text-primary:    #0d0d0d;
+  --text-secondary:  #5d5d6b;
+  --text-tertiary:   #8e8ea0;
+  --text-quaternary: #b4b4c0;
+
+  /* lines */
+  --border-primary: #ececf1;
+  --border-strong:  #e2e2e8;
+
+  /* STATUS RAMP — OpenAI-themed: monochrome GREEN, no second hue for 'live'.
+     running vs done is separated by MOTION + FILL, not color (the ChatGPT way):
+       running = bright green, dashed 'marching ants' border, in motion
+       done    = calmer green, solid ring + static check
+     red stays for the one genuinely different state (error); grey = idle. */
+  --color-pending: #9aa0a6;   /* grey  — idle, hollow, still           */
+  --color-running: #10a37f;   /* green (bright) — working, marching     */
+  --color-done:    #15803d;   /* green (calm)   — success, static + ✓   */
+  --color-error:   #dc2626;   /* red   — failed                         */
+  --color-warn:    #c89a3a;
+  --glow-running:  rgba(16,163,127,0.40);
+  --glow-error:    rgba(220,38,38,0.40);
+
+  /* faint topology texture */
+  --grid-dot:      rgba(13,13,13,0.05);
+  --grid-vignette: rgba(255,255,255,0);
+  --shadow-card:   0 1px 2px rgba(13,13,13,0.04), 0 1px 1px rgba(13,13,13,0.03);
+}
+
+[data-theme="dark"] {
+  /* OpenAI dark = warm-neutral near-blacks, NOT Apple's pure #000 + blue.
+     Surfaces step up in lightness; the green stays the only hue. */
+  --accent:        #19c39c;   /* slightly brighter green for dark contrast */
+  --accent-text:   #2ad4ab;
+  --accent-dim:    rgba(25,195,156,0.14);
+
+  --bg-app:        #0d0d0d;   /* page (OpenAI app black) */
+  --bg-card:       #171717;   /* panels */
+  --bg-inset:      #1e1e1e;   /* log well, segmented bg */
+  --bg-running:    rgba(25,195,156,0.11);
+  --bg-done:       rgba(46,163,111,0.12);
+  --bg-error:      rgba(239,107,107,0.12);
+  --bg-pending:    transparent;
+
+  --text-primary:    #ececec;
+  --text-secondary:  #a8a8b3;
+  --text-tertiary:   #70707c;
+  --text-quaternary: #4a4a52;
+
+  --border-primary: #262626;
+  --border-strong:  #303030;
+
+  /* status ramp — dark, monochrome green (running=bright, done=calm) */
+  --color-pending: #70707c;   /* grey         */
+  --color-running: #19c39c;   /* green bright  */
+  --color-done:    #2ea36f;   /* green calm    */
+  --color-error:   #ef6b6b;   /* red           */
+  --color-warn:    #d8b24a;
+  --glow-running:  rgba(25,195,156,0.50);
+  --glow-error:    rgba(239,107,107,0.45);
+
+  --grid-dot:      rgba(255,255,255,0.045);
+  --grid-vignette: rgba(13,13,13,0);
+  --shadow-card:   0 1px 2px rgba(0,0,0,0.4);
+}
+
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+
+html, body { height:100%; }
+body {
+  font-family: var(--font);
+  background: var(--bg-app);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  transition: background .25s ease, color .25s ease;
+  display:flex; flex-direction:column;
+}
+
+/* ── header ───────────────────────────────────────────────────────── */
+.hdr {
+  display:flex; align-items:center; gap:14px;
+  padding:13px 22px;
+  background: var(--bg-card);
+  border-bottom:1px solid var(--border-primary);
+}
+.logo {
+  width:28px;height:28px;border-radius:7px;flex-shrink:0;
+  background: var(--text-primary); display:grid;place-items:center;
+}
+.logo svg { width:16px;height:16px; }
+.wordmark .name { font-size:15px; font-weight:600; letter-spacing:-0.01em; }
+.wordmark .sub { font-size:11px; color:var(--text-tertiary); margin-top:1px; }
+
+.tabs { display:flex; gap:0; margin-left:18px; }
+.tab {
+  font:inherit; font-size:13px; font-weight:450; border:0; cursor:pointer;
+  padding:7px 14px; background:transparent; color:var(--text-secondary);
+  border-bottom:2px solid transparent;
+}
+.tab.on { color:var(--text-primary); border-bottom-color:var(--text-primary); font-weight:500; }
+.spacer { flex:1; }
+
+/* header status pill — now reflects the run state (running = amber, glowing) */
+.pill {
+  display:flex; align-items:center; gap:7px;
+  padding:5px 12px; border-radius:8px;
+  background: var(--bg-running); color:var(--color-running);
+  font-size:12px; font-weight:500;
+}
+.pill .dot {
+  width:7px;height:7px;border-radius:50%;background:currentColor;
+  box-shadow: 0 0 0 0 var(--glow-running);
+  animation: pulseGlow 1.7s ease-in-out infinite;
+}
+@keyframes pulseGlow {
+  0%   { box-shadow:0 0 0 0 var(--glow-running); opacity:1; }
+  70%  { box-shadow:0 0 0 6px transparent;       opacity:.55; }
+  100% { box-shadow:0 0 0 0 transparent;          opacity:1; }
+}
+
+.toggle {
+  width:32px;height:32px;border-radius:8px;flex-shrink:0;
+  background:var(--bg-card);border:1px solid var(--border-strong);color:var(--text-secondary);
+  display:grid;place-items:center;font-size:15px;cursor:pointer;
+}
+.toggle:hover { color:var(--text-primary); }
+
+/* ── layout ───────────────────────────────────────────────────────── */
+.shell { flex:1; display:grid; grid-template-columns:248px 1fr; min-height:0; }
+
+.side {
+  padding:18px 14px; border-right:1px solid var(--border-primary);
+  background:var(--bg-card); overflow:auto;
+}
+.side h3, .panel h3 {
+  font-size:11px; font-weight:600; letter-spacing:0.02em;
+  color:var(--text-tertiary); margin-bottom:13px;
+}
+.agent {
+  display:flex; align-items:center; gap:11px;
+  padding:9px 10px; border-radius:8px; margin-bottom:3px;
+}
+.agent.live { background:var(--bg-running); }
+.agent .ic { width:18px;height:18px;border-radius:50%;flex-shrink:0;
+  display:grid;place-items:center;font-size:11px; transition:background .2s; }
+/* running = green dashed ring, slowly crawling (marching ants), no glow — flat */
+.agent.live .ic {
+  background:transparent; color:var(--color-running);
+  border:1.5px dashed var(--color-running);
+  animation: spin 3s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+/* done = solid green disc, white check, completely static (calm = reward) */
+.agent.done .ic { background:var(--color-done); color:#fff; border:0; }
+.agent.wait .ic { border:1.5px solid var(--color-pending); color:var(--color-pending); }
+.agent .nm { font-size:13.5px; font-weight:450; }
+.agent .mt { font-size:11px; color:var(--text-tertiary); margin-top:1px; font-family:var(--mono); }
+.agent .col { display:flex; flex-direction:column; }
+
+/* ── main column = topology over log ──────────────────────────────── */
+.main { display:flex; flex-direction:column; min-width:0; overflow:auto; }
+
+.panel { padding:16px 18px 18px; }
+.panel + .panel { border-top:1px solid var(--border-primary); }
+.panel-head { display:flex; align-items:center; gap:12px; margin-bottom:13px; }
+.panel-head h3 { margin:0; }
+.panel-head .grow { flex:1; }
+
+/* segmented "view" switcher — THE "add views" control */
+.seg {
+  display:inline-flex; background:var(--bg-inset);
+  border:1px solid var(--border-primary); border-radius:9px; padding:2px;
+}
+.seg button {
+  font:inherit; font-size:12px; font-weight:450; cursor:pointer;
+  border:0; background:transparent; color:var(--text-secondary);
+  padding:4px 12px; border-radius:7px; display:flex; align-items:center; gap:6px;
+  transition: background .15s, color .15s;
+}
+.seg button.on { background:var(--bg-card); color:var(--text-primary); font-weight:500;
+  box-shadow: var(--shadow-card); }
+.seg .ico { width:13px; height:13px; opacity:.85; }
+
+.add-view {
+  width:28px;height:28px;border-radius:8px;flex-shrink:0;
+  background:transparent;border:1px dashed var(--border-strong);color:var(--text-tertiary);
+  display:grid;place-items:center;font-size:16px;cursor:pointer;
+}
+.add-view:hover { color:var(--accent-text); border-color:var(--accent); }
+
+/* topology canvas — faint texture lives here, behind the graph */
+.topo {
+  position:relative; border-radius:12px; overflow:hidden;
+  background: var(--bg-card);
+  border:1px solid var(--border-primary);
+  height:300px;
+}
+/* THE FAINT THING:
+   layer 1 = dot grid (mask-faded to center), layer 2 = soft radial vignette.
+   Pure CSS, sits under the SVG. Gives the canvas depth without color noise. */
+.topo::before {
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
+  background-size: 22px 22px;
+  -webkit-mask-image: radial-gradient(120% 120% at 50% 45%, #000 35%, transparent 88%);
+          mask-image: radial-gradient(120% 120% at 50% 45%, #000 35%, transparent 88%);
+}
+.topo svg { position:relative; width:100%; height:100%; display:block; }
+/* marching-ants: the running node's dashed stroke crawls (no glow — flat/OpenAI) */
+#topo-svg circle.march { animation: march .6s linear infinite; }
+@keyframes march { to { stroke-dashoffset: -26; } }
+
+.zoom-ctl {
+  position:absolute; right:12px; bottom:12px; display:flex; gap:4px;
+  background:var(--bg-card); border:1px solid var(--border-primary);
+  border-radius:9px; padding:3px; box-shadow:var(--shadow-card);
+}
+.zoom-ctl button {
+  width:26px;height:26px;border:0;background:transparent;color:var(--text-secondary);
+  font:inherit;font-size:14px;cursor:pointer;border-radius:6px;
+}
+.zoom-ctl button:hover { background:var(--bg-inset); color:var(--text-primary); }
+.zoom-label { font-size:11px;color:var(--text-tertiary);align-self:center;padding:0 6px;font-family:var(--mono); }
+
+/* faint legend chip row under the canvas */
+.legend { display:flex; gap:16px; margin-top:11px; font-size:11.5px; color:var(--text-tertiary); }
+.legend span { display:flex; align-items:center; gap:6px; }
+.legend i { width:9px;height:9px;border-radius:50%;display:inline-block; }
+.legend .lg-pending { background:transparent; border:1.5px solid var(--color-pending); width:8px;height:8px; }
+.legend .lg-running { background:var(--color-running); box-shadow:0 0 6px var(--glow-running);
+  animation: pulseGlow 1.7s ease-in-out infinite; }
+.legend .lg-error   { background:var(--color-error); }
+
+/* ── node-click detail drawer ─────────────────────────────────────── */
+.scrim {
+  position:fixed; inset:0; background:rgba(0,0,0,0.28);
+  opacity:0; pointer-events:none; transition:opacity .2s ease; z-index:40;
+}
+.scrim.open { opacity:1; pointer-events:auto; }
+.drawer {
+  position:fixed; top:0; right:0; height:100%; width:380px; max-width:92vw;
+  background:var(--bg-card); border-left:1px solid var(--border-primary);
+  box-shadow:-12px 0 32px -16px rgba(0,0,0,0.4);
+  transform:translateX(100%); transition:transform .26s cubic-bezier(.4,0,.2,1);
+  z-index:50; display:flex; flex-direction:column; overflow:auto;
+}
+.drawer.open { transform:translateX(0); }
+.dw-head {
+  display:flex; align-items:center; gap:12px; padding:16px 18px 12px;
+  border-bottom:1px solid var(--border-primary); position:sticky; top:0; background:var(--bg-card);
+}
+.dw-title { display:flex; align-items:center; gap:10px; flex:1; min-width:0; }
+.dw-name { font-size:15px; font-weight:600; font-family:var(--mono); }
+.dw-badge {
+  font-size:11px; font-weight:500; padding:2px 9px; border-radius:999px; text-transform:capitalize;
+}
+.dw-badge.done    { background:var(--bg-done);    color:var(--color-done); }
+.dw-badge.running { background:var(--bg-running); color:var(--color-running);
+  box-shadow:0 0 8px var(--glow-running); }
+.dw-badge.pending { background:var(--bg-inset);   color:var(--color-pending); }
+.dw-badge.error   { background:var(--bg-error);   color:var(--color-error); }
+.dw-close {
+  width:28px;height:28px;border-radius:7px;border:0;background:transparent;
+  color:var(--text-tertiary);cursor:pointer;font-size:14px;
+}
+.dw-close:hover { background:var(--bg-inset); color:var(--text-primary); }
+.dw-stats { display:flex; gap:10px; padding:14px 18px; }
+.dw-stat {
+  flex:1; background:var(--bg-inset); border:1px solid var(--border-primary);
+  border-radius:9px; padding:9px 11px; display:flex; flex-direction:column; gap:3px;
+}
+.dw-stat .k { font-size:10.5px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:.03em; }
+.dw-stat .v { font-size:14px; font-weight:600; font-family:var(--mono); }
+.dw-section { padding:6px 18px 14px; }
+.dw-section h4 {
+  font-size:11px; font-weight:600; color:var(--text-tertiary);
+  text-transform:uppercase; letter-spacing:.03em; margin-bottom:7px;
+}
+.dw-box {
+  background:var(--bg-inset); border:1px solid var(--border-primary);
+  border-radius:9px; padding:10px 12px; font-size:12.5px; line-height:1.55;
+  color:var(--text-secondary);
+}
+.dw-log { background:var(--bg-inset); border:1px solid var(--border-primary);
+  border-radius:9px; padding:10px 12px; }
+.dw-log .empty { color:var(--text-quaternary); font-size:12px; font-style:italic; }
+
+/* ── live log ─────────────────────────────────────────────────────── */
+.log-well {
+  background:var(--bg-inset); border:1px solid var(--border-primary);
+  border-radius:12px; padding:14px 16px;
+}
+.log { font-family:var(--mono); font-size:12px; line-height:1.95; }
+.log .ln { display:flex; gap:12px; }
+.log .t { color:var(--text-quaternary); }
+.log .a { color:var(--accent-text); }
+.log .a.swarm { color:var(--text-secondary); }
+.log .a.done { color:var(--color-done); }
+.log .m { color:var(--text-secondary); }
+
+/* tiny caption explaining each mock decision */
+.foot {
+  padding:14px 22px 26px; color:var(--text-tertiary); font-size:12px; line-height:1.6;
+  border-top:1px solid var(--border-primary); background:var(--bg-card);
+}
+.foot b { color:var(--text-secondary); }
+.foot code { font-family:var(--mono); color:var(--accent-text); }
+</style>
+</head>
+<body>
+
+<!-- ───────── header ───────── -->
+<div class="hdr">
+  <div class="logo">
+    <svg viewBox="0 0 26 26" fill="none"><polygon points="13,3 22,8 22,18 13,23 4,18 4,8" stroke="#fff" stroke-width="1.4" fill="none"/><circle cx="13" cy="13" r="2" fill="#fff"/></svg>
+  </div>
+  <div class="wordmark">
+    <div class="name">Swarm</div>
+    <div class="sub">Multi-agent orchestrator</div>
+  </div>
+  <div class="tabs">
+    <button class="tab on">Live</button>
+    <button class="tab">History</button>
+    <button class="tab">Cost</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="pill"><span class="dot"></span> Running</div>
+  <button class="toggle" id="toggle" title="Toggle light / dark">◐</button>
+</div>
+
+<!-- ───────── body ───────── -->
+<div class="shell">
+  <div class="side">
+    <h3>Agents</h3>
+    <div class="agent done"><span class="ic">✓</span><div class="col"><span class="nm">searcher</span><span class="mt">2.4s · 1,280 tok</span></div></div>
+    <div class="agent done"><span class="ic">✓</span><div class="col"><span class="nm">analyst</span><span class="mt">3.1s · 1,840 tok</span></div></div>
+    <div class="agent live"><span class="ic">↻</span><div class="col"><span class="nm">synthesiser</span><span class="mt">running…</span></div></div>
+    <div class="agent wait"><span class="ic">○</span><div class="col"><span class="nm">reviewer</span><span class="mt">pending</span></div></div>
+  </div>
+
+  <div class="main">
+
+    <!-- TOPOLOGY PANEL with view switcher -->
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Topology</h3>
+        <div class="seg" id="seg">
+          <button class="on" data-view="graph">
+            <svg class="ico" viewBox="0 0 16 16" fill="none"><circle cx="3" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><circle cx="13" cy="4" r="2" stroke="currentColor" stroke-width="1.3"/><circle cx="13" cy="12" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M5 8 L11 4 M5 8 L11 12" stroke="currentColor" stroke-width="1.3"/></svg>
+            Graph
+          </button>
+          <button data-view="timeline">
+            <svg class="ico" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="9" height="2.5" rx="1.2" fill="currentColor"/><rect x="2" y="7" width="12" height="2.5" rx="1.2" fill="currentColor"/><rect x="2" y="11" width="6" height="2.5" rx="1.2" fill="currentColor"/></svg>
+            Timeline
+          </button>
+          <button data-view="tokens">
+            <svg class="ico" viewBox="0 0 16 16" fill="none"><rect x="2" y="9" width="3" height="5" rx="1" fill="currentColor"/><rect x="6.5" y="5" width="3" height="9" rx="1" fill="currentColor"/><rect x="11" y="7" width="3" height="7" rx="1" fill="currentColor"/></svg>
+            Tokens
+          </button>
+          <button data-view="flow">
+            <svg class="ico" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="6" width="4.5" height="4" rx="1.2" stroke="currentColor" stroke-width="1.3"/><path d="M8 8 l2.2-2.2 2.2 2.2-2.2 2.2z" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M6 8 H8" stroke="currentColor" stroke-width="1.3"/></svg>
+            Flow
+          </button>
+        </div>
+        <div class="grow"></div>
+        <button class="add-view" title="Add a view (overlay / split)">+</button>
+      </div>
+
+      <div class="topo">
+        <svg id="topo-svg" viewBox="0 0 600 300" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="zoom-ctl">
+          <button>−</button><span class="zoom-label">100%</span><button>+</button>
+        </div>
+      </div>
+
+      <div class="legend">
+        <span><i class="lg-pending"></i> pending</span>
+        <span><i class="lg-running"></i> running</span>
+        <span><i style="background:var(--color-done)"></i> done</span>
+        <span><i class="lg-error"></i> error</span>
+      </div>
+    </div>
+
+    <!-- LIVE LOG PANEL -->
+    <div class="panel">
+      <div class="panel-head"><h3>Live Log</h3></div>
+      <div class="log-well">
+        <div class="log">
+          <div class="ln"><span class="t">14:02:08</span><span class="a swarm">[swarm]</span><span class="m">started · research blueprint</span></div>
+          <div class="ln"><span class="t">14:02:09</span><span class="a">[searcher]</span><span class="m">fetched 12 sources</span></div>
+          <div class="ln"><span class="t">14:02:11</span><span class="a done">[searcher]</span><span class="m">done · confidence 0.91</span></div>
+          <div class="ln"><span class="t">14:02:12</span><span class="a">[analyst]</span><span class="m">clustering findings</span></div>
+          <div class="ln"><span class="t">14:02:15</span><span class="a done">[analyst]</span><span class="m">done · 4 themes</span></div>
+          <div class="ln"><span class="t">14:02:16</span><span class="a">[synthesiser]</span><span class="m">drafting report…</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ───────── node-click detail drawer ───────── -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-label="Agent detail">
+  <div class="dw-head">
+    <div class="dw-title">
+      <span class="dw-name" id="dw-name">agent</span>
+      <span class="dw-badge" id="dw-status">status</span>
+    </div>
+    <button class="dw-close" id="dw-close" title="Close (Esc)">✕</button>
+  </div>
+  <div class="dw-stats">
+    <div class="dw-stat"><span class="k">Duration</span><span class="v" id="dw-dur">—</span></div>
+    <div class="dw-stat"><span class="k">Tokens</span><span class="v" id="dw-tok">—</span></div>
+  </div>
+  <div class="dw-section">
+    <h4>Prompt</h4>
+    <div class="dw-box" id="dw-prompt"></div>
+  </div>
+  <div class="dw-section">
+    <h4>Output</h4>
+    <div class="dw-box" id="dw-output"></div>
+  </div>
+  <div class="dw-section">
+    <h4>Log</h4>
+    <div class="dw-log log" id="dw-log"></div>
+  </div>
+</aside>
+
+<div class="foot">
+  <b>What changed vs. today.</b>
+  Both modes now speak OpenAI: <code>--accent</code> is the only hue (green), the dark theme drops Apple's pure-black + blue glow for warm near-blacks (<code>#0d0d0d</code>/<code>#171717</code>) and flat hairlines.
+  &nbsp;·&nbsp; <b>Faint topology texture</b> = a masked <code>radial-gradient</code> dot-grid + vignette painted by <code>.topo::before</code>, sitting under the existing SVG — depth, no noise.
+  &nbsp;·&nbsp; <b>“Add views”</b> = the segmented <code>Graph / Timeline / Tokens / Flow</code> switcher (same run, four lenses; Flow is the Phase-2 groups + condition-diamond execution graph). <b>Tokens</b> is per-run usage; the nav-bar <b>Cost</b> stays for all-runs spend — no more duplicate label.
+  &nbsp;·&nbsp; <b>State system (OpenAI-themed, monochrome)</b> — no second hue for “live”: <span style="color:var(--color-running)">running</span> is bright green with a <b>marching-ants</b> dashed border (in motion); <span style="color:var(--color-done)">done</span> is calm green, solid ring + a static ✓; pending is grey; red is reserved for error only. Motion + the check separate running from done, the way ChatGPT marks streaming.
+  &nbsp;·&nbsp; <b>Click any node</b> (or sidebar agent) → detail drawer with prompt, output, tokens, duration + filtered log. Toggle ◐ for light/dark; Esc closes the drawer.
+</div>
+
+<script>
+/* ── theme toggle ──────────────────────────────────────────────── */
+const root = document.documentElement;
+document.getElementById('toggle').onclick = () => {
+  root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+  render(currentView);
+};
+
+/* ── tiny color reader (same idea as graph.js themeColors) ─────── */
+const cv = n => getComputedStyle(root).getPropertyValue(n).trim();
+
+/* ── demo data: 3 stages, mirrors the research blueprint ───────── */
+const stages = [
+  { agents: ['searcher'] },
+  { agents: ['analyst'] },
+  { agents: ['synthesiser', 'reviewer'] },
+];
+const state = { searcher:'done', analyst:'done', synthesiser:'running', reviewer:'pending' };
+const meta  = { searcher:'2.4s', analyst:'3.1s', synthesiser:'1.2s', reviewer:'—' };
+const tok   = { searcher:1280, analyst:1840, synthesiser:920, reviewer:0 };
+
+const SVG='http://www.w3.org/2000/svg';
+const svg=document.getElementById('topo-svg');
+let currentView='graph';
+
+function clear(){ while(svg.firstChild) svg.removeChild(svg.firstChild); }
+function el(t,a){ const e=document.createElementNS(SVG,t); for(const k in a) e.setAttribute(k,a[k]); return e; }
+
+function statusColors(st){
+  const map={
+    done:    {stroke:cv('--color-done'),    fill:cv('--bg-done'),    text:cv('--color-done')},
+    running: {stroke:cv('--color-running'), fill:cv('--bg-running'), text:cv('--color-running')},
+    error:   {stroke:cv('--color-error'),   fill:cv('--bg-error'),   text:cv('--color-error')},
+    pending: {stroke:cv('--color-pending'), fill:cv('--bg-card'),    text:cv('--color-pending')},
+  };
+  return map[st]||map.pending;
+}
+
+/* ── view A: GRAPH (matches ui/graph.js node/edge layout, restyled) ── */
+function renderGraph(){
+  svg.setAttribute('viewBox','0 0 600 300');
+  const W=600,H=300,R=40;
+  const stageW=W/(stages.length+1);
+  const pos={};
+  stages.forEach((s,si)=>{ const x=stageW*(si+1);
+    s.agents.forEach((ag,ai)=>{ pos[ag]={x,y:(H/(s.agents.length+1))*(ai+1)}; }); });
+
+  // edges (flat hairlines, accent only when active — no glow)
+  stages.forEach((s,si)=>{ if(si===0)return;
+    stages[si-1].agents.forEach(f=> s.agents.forEach(t=>{
+      const p1=pos[f],p2=pos[t]; const active=state[f]==='done'||state[f]==='running';
+      svg.appendChild(el('line',{x1:p1.x+R+2,y1:p1.y,x2:p2.x-R-2,y2:p2.y,
+        stroke: active?cv('--accent'):cv('--border-strong'),
+        'stroke-width': active?1.6:1.3 }));
+    }));
+  });
+
+  // nodes — state encoded on hue + motion:
+  //   pending = grey hollow, still ·  running = AMBER, glow + breathing halo +
+  //   rotating comet arc ·  done = GREEN ring + static check ·  error = red glow
+  Object.entries(pos).forEach(([ag,{x,y}])=>{
+    const st=state[ag], c=statusColors(st);
+    const g=el('g',{class:'node', style:'cursor:pointer'});
+    g.dataset.agent=ag;
+
+    // running = MARCHING ANTS: a dashed green border that crawls (flat, no glow).
+    // done = solid calm-green ring + static check. Motion alone separates the two.
+    const circle=el('circle',{cx:x,cy:y,r:R,fill:c.fill,stroke:c.stroke,
+      'stroke-width': st==='running'?2.2:1.6});
+    if(st==='running'){
+      circle.setAttribute('stroke-dasharray','7 6');
+      circle.setAttribute('class','march');   // CSS animates stroke-dashoffset
+    }
+    if(st==='error') circle.style.filter=`drop-shadow(0 0 6px ${cv('--glow-error')})`;
+    g.appendChild(circle);
+
+    const t1=el('text',{x,y:y-2,'text-anchor':'middle','font-size':11,fill:c.text,'font-family':cv('--mono')||'monospace','pointer-events':'none'});
+    t1.textContent=ag.length>10?ag.slice(0,9)+'…':ag;
+    g.appendChild(t1);
+    // done gets a static green check above the label; running shows nothing extra (motion carries it)
+    const sub=el('text',{x,y:y+13,'text-anchor':'middle','font-size':9,fill:cv('--text-tertiary'),'font-family':cv('--mono')||'monospace','pointer-events':'none'});
+    sub.textContent = st==='done' ? '✓ '+meta[ag] : meta[ag];
+    if(st==='done') sub.setAttribute('fill', c.text);
+    g.appendChild(sub);
+
+    svg.appendChild(g);
+  });
+}
+
+/* ── view B: TIMELINE (same agents, time-ordered bars / gantt) ── */
+function renderTimeline(){
+  svg.setAttribute('viewBox','0 0 600 300');
+  const rows=[['searcher',0,2.4],['analyst',2.4,3.1],['synthesiser',5.5,1.2],['reviewer',6.7,0]];
+  const totT=8, padL=110, padR=30, x0=padL, x1=600-padR, span=x1-x0;
+  const rowH=46, top=46;
+  rows.forEach((r,i)=>{
+    const[ag,start,dur]=r; const y=top+i*rowH; const c=statusColors(state[ag]);
+    svg.appendChild(el('text',{x:padL-14,y:y+4,'text-anchor':'end','font-size':11.5,fill:cv('--text-secondary'),'font-family':cv('--font')})).textContent=ag;
+    // track
+    svg.appendChild(el('line',{x1:x0,y1:y,x2:x1,y2:y,stroke:cv('--border-primary'),'stroke-width':1}));
+    if(dur>0){
+      const bx=x0+(start/totT)*span, bw=Math.max(10,(dur/totT)*span);
+      svg.appendChild(el('rect',{x:bx,y:y-9,width:bw,height:18,rx:5,fill:c.fill,stroke:c.stroke,'stroke-width':1.4}));
+      const lab=el('text',{x:bx+bw+8,y:y+4,'font-size':10,fill:cv('--text-tertiary'),'font-family':cv('--mono')});
+      lab.textContent=dur.toFixed(1)+'s'; svg.appendChild(lab);
+    } else {
+      svg.appendChild(el('circle',{cx:x0+(start/totT)*span,cy:y,r:5,fill:'none',stroke:cv('--text-quaternary'),'stroke-width':1.4}));
+    }
+  });
+  // axis
+  for(let s=0;s<=totT;s+=2){
+    const x=x0+(s/totT)*span;
+    svg.appendChild(el('line',{x1:x,y1:top-18,x2:x,y2:top+rows.length*rowH-rowH+18,stroke:cv('--border-primary'),'stroke-width':1,'stroke-dasharray':'2 4'}));
+    const t=el('text',{x,y:top-24,'text-anchor':'middle','font-size':9,fill:cv('--text-quaternary'),'font-family':cv('--mono')});
+    t.textContent=s+'s'; svg.appendChild(t);
+  }
+}
+
+/* ── view C: COST (same agents, token heatmap bars) ── */
+function renderCost(){
+  svg.setAttribute('viewBox','0 0 600 300');
+  const entries=Object.entries(tok); const max=Math.max(...entries.map(e=>e[1]),1);
+  const padL=110, x0=padL, x1=560, span=x1-x0; const rowH=52, top=44;
+  entries.forEach(([ag,v],i)=>{
+    const y=top+i*rowH; const c=statusColors(state[ag]); const w=(v/max)*span;
+    svg.appendChild(el('text',{x:padL-14,y:y+4,'text-anchor':'end','font-size':11.5,fill:cv('--text-secondary'),'font-family':cv('--font')})).textContent=ag;
+    svg.appendChild(el('rect',{x:x0,y:y-11,width:span,height:22,rx:6,fill:cv('--bg-inset')}));
+    if(v>0) svg.appendChild(el('rect',{x:x0,y:y-11,width:Math.max(6,w),height:22,rx:6,fill:c.fill,stroke:c.stroke,'stroke-width':1.3}));
+    const lab=el('text',{x:x0+Math.max(6,w)+10,y:y+4,'font-size':10.5,fill:cv('--text-tertiary'),'font-family':cv('--mono')});
+    lab.textContent=v?v.toLocaleString()+' tok':'—'; svg.appendChild(lab);
+  });
+}
+
+/* ── view D: FLOW (Phase-2 execution graph — groups + condition diamond) ──
+   Mirrors renderExecutionGraph: rounded-rect groups, a diamond condition,
+   green "true" / red "false" branch edges. Restyled OpenAI-flat: hairline
+   rects, accent-dim diamond, branch labels in mono. */
+function renderFlow(){
+  svg.setAttribute('viewBox','0 0 600 300');
+  const accent=cv('--accent'), dim=cv('--accent-dim');
+  const done=cv('--color-done'), err=cv('--color-error'), warn=cv('--color-warn');
+  const line=cv('--border-strong'), ink=cv('--text-primary'), sub=cv('--text-tertiary');
+  const card=cv('--bg-card');
+
+  function group(cx,cy,label,agents,st){
+    const w=130,h=52; const c=statusColors(st);
+    svg.appendChild(el('rect',{x:cx-w/2,y:cy-h/2,width:w,height:h,rx:10,
+      fill:st==='pending'?card:c.fill, stroke:st==='pending'?line:c.stroke,'stroke-width':1.5}));
+    const t=el('text',{x:cx,y:cy-3,'text-anchor':'middle','font-size':12,'font-weight':500,fill:ink,'font-family':cv('--font')});
+    t.textContent=label; svg.appendChild(t);
+    const s=el('text',{x:cx,y:cy+13,'text-anchor':'middle','font-size':9.5,fill:sub,'font-family':cv('--mono')});
+    s.textContent=agents; svg.appendChild(s);
+  }
+  function diamond(cx,cy,label){
+    const r=34;
+    svg.appendChild(el('polygon',{points:`${cx},${cy-r} ${cx+r},${cy} ${cx},${cy+r} ${cx-r},${cy}`,
+      fill:dim,stroke:warn,'stroke-width':1.5}));
+    const t=el('text',{x:cx,y:cy+3,'text-anchor':'middle','font-size':10,fill:ink,'font-family':cv('--mono')});
+    t.textContent=label; svg.appendChild(t);
+  }
+  function edge(x1,y1,x2,y2,kind){
+    const col=kind==='true'?done:kind==='false'?err:accent;
+    svg.appendChild(el('line',{x1,y1,x2,y2,stroke:col,'stroke-width':1.5,'stroke-dasharray':kind==='seq'?'':'4 3'}));
+    if(kind!=='seq'){
+      const t=el('text',{x:(x1+x2)/2,y:(y1+y2)/2-6,'text-anchor':'middle','font-size':9,fill:col,'font-family':cv('--mono')});
+      t.textContent=kind; svg.appendChild(t);
+    }
+  }
+  // layout: research(group) → ?high_confidence(diamond) → synthesis | fallback
+  edge(135,150,196,150,'seq');
+  edge(264,140,346,80,'true');
+  edge(264,160,346,220,'false');
+  group(70,150,'research','searcher, analyst','done');
+  diamond(230,150,'conf?');
+  group(420,80,'synthesis','synthesiser','running');
+  group(420,220,'fallback','reviewer','pending');
+}
+
+function render(view){
+  currentView=view; clear();
+  if(view==='timeline') renderTimeline();
+  else if(view==='tokens') renderCost();
+  else if(view==='flow') renderFlow();
+  else renderGraph();
+}
+
+/* segmented control */
+document.getElementById('seg').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  [...document.querySelectorAll('#seg button')].forEach(x=>x.classList.toggle('on',x===b));
+  render(b.dataset.view);
+});
+
+/* ── node-click DETAIL DRAWER ─────────────────────────────────────────
+   Click any topology node (or sidebar agent row) → slide-in panel with the
+   agent's prompt, output, tokens, duration and a filtered log. */
+const drawerData = {
+  searcher: { status:'done', dur:'2.4s', tokens:1280,
+    prompt:'Search the web for primary sources on the topic. Return 10–15 URLs with one-line relevance notes and a confidence score.',
+    output:'12 sources · confidence 0.91 · 4 domains (arxiv, docs, blogs, news)',
+    log:[['14:02:09','fetched 12 sources'],['14:02:11','done · confidence 0.91']] },
+  analyst: { status:'done', dur:'3.1s', tokens:1840,
+    prompt:'Cluster the searcher findings into themes. Drop low-signal results. Emit a theme list with supporting source ids.',
+    output:'4 themes · 9/12 sources retained',
+    log:[['14:02:12','clustering findings'],['14:02:15','done · 4 themes']] },
+  synthesiser: { status:'running', dur:'1.2s', tokens:920,
+    prompt:'Draft a cited report from the analyst themes. Inline-cite every claim. Target 600 words.',
+    output:'drafting report… (streaming)',
+    log:[['14:02:16','drafting report…']] },
+  reviewer: { status:'pending', dur:'—', tokens:0,
+    prompt:'Fact-check the synthesiser draft against sources. Flag uncited or contradicted claims.',
+    output:'—', log:[] },
+};
+function openDrawer(agent){
+  const d=drawerData[agent]; if(!d) return;
+  const c=getComputedStyle(root);
+  document.getElementById('dw-name').textContent=agent;
+  const badge=document.getElementById('dw-status');
+  badge.textContent=d.status;
+  badge.className='dw-badge '+d.status;
+  document.getElementById('dw-dur').textContent=d.dur;
+  document.getElementById('dw-tok').textContent=d.tokens?d.tokens.toLocaleString()+' tok':'—';
+  document.getElementById('dw-prompt').textContent=d.prompt;
+  document.getElementById('dw-output').textContent=d.output;
+  const logEl=document.getElementById('dw-log');
+  logEl.innerHTML = d.log.length
+    ? d.log.map(([t,m])=>`<div class="ln"><span class="t">${t}</span><span class="m">${m}</span></div>`).join('')
+    : '<div class="empty">no log lines yet</div>';
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('scrim').classList.add('open');
+}
+function closeDrawer(){
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('scrim').classList.remove('open');
+}
+// topology nodes (event-delegated so it survives re-renders)
+svg.addEventListener('click',e=>{
+  const g=e.target.closest('.node'); if(!g) return;
+  openDrawer(g.dataset.agent);
+});
+// sidebar agent rows
+document.querySelectorAll('.side .agent').forEach(row=>{
+  row.style.cursor='pointer';
+  row.addEventListener('click',()=>openDrawer(row.querySelector('.nm').textContent.trim()));
+});
+document.getElementById('scrim').addEventListener('click',closeDrawer);
+document.getElementById('dw-close').addEventListener('click',closeDrawer);
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeDrawer(); });
+
+render('graph');
+</script>
+</body>
+</html>
